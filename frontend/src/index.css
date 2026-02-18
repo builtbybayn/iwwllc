@@ -1,0 +1,785 @@
+:root {
+  --color-bg: #000000;
+  --color-card-dark: #12131a;
+  --color-primary: #0088FF;
+  --color-text: #ffffff;
+  --color-text-secondary: rgba(255, 255, 255, 0.6);
+  --border-radius-card: 28px;
+  --border-radius-button: 32px;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  overflow: hidden;
+  user-select: none;
+  display: flex;
+  justify-content: center;
+}
+
+#root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 480px; /* Standard premium mobile width for desktop viewing */
+}
+
+.brand-banner {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  text-align: center;
+  padding: 16px 0 8px 0;
+  font-size: 19px;
+  font-weight: 600;
+  width: 100%;
+  letter-spacing: -0.3px;
+}
+
+@keyframes fadeInUpSubtle {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-up-subtle {
+  animation: fadeInUpSubtle 0.4s ease-out forwards;
+}
+
+.app-container {
+  padding: 20px 16px 0 16px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  transition: opacity 0.3s ease;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.app-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* Form Styles */
+.form-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  padding-bottom: 20px;
+  flex: 1;
+  scrollbar-width: none;
+}
+
+.form-container::-webkit-scrollbar {
+  display: none;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input-group label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  padding-left: 4px;
+}
+
+.input-field {
+  background-color: var(--color-card-dark);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  padding: 16px;
+  color: white;
+  font-size: 16px;
+  outline: none;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.input-field:focus {
+  border-color: var(--color-primary);
+}
+
+.continue-button:disabled {
+  background-color: var(--color-card-dark);
+  color: rgba(255, 255, 255, 0.2);
+  cursor: not-allowed;
+  box-shadow: none;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.continue-button:disabled::before {
+  display: none;
+}
+
+/* Custom Dropdown Styling */
+.select-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.select-wrapper select {
+  appearance: none;
+  width: 100%;
+}
+
+.select-wrapper .chevron {
+  position: absolute;
+  right: 16px;
+  pointer-events: none;
+  color: var(--color-text-secondary);
+  width: 20px;
+  height: 20px;
+  transform: rotate(180deg);
+}
+
+.row-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Header with Back Button */
+.view-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.back-button {
+  background: none;
+  border: none;
+  color: white;
+  padding: 8px;
+  margin-left: -8px;
+  cursor: pointer;
+  transform: translateY(2px);
+}
+
+.payment-options {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.payment-card {
+  border-radius: var(--border-radius-card);
+  padding: 24px;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background-color: var(--color-card-dark);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+/* Subtle Floating Animation for Selected Card */
+@keyframes subtleFloat {
+  0% { transform: translateY(0px) perspective(1000px) rotateX(0deg) rotateY(0deg); }
+  25% { transform: translateY(-2px) perspective(1000px) rotateX(0.5deg) rotateY(0.5deg); }
+  50% { transform: translateY(-3px) perspective(1000px) rotateX(0deg) rotateY(-0.5deg); }
+  75% { transform: translateY(-2px) perspective(1000px) rotateX(-0.5deg) rotateY(0deg); }
+  100% { transform: translateY(0px) perspective(1000px) rotateX(0deg) rotateY(0deg); }
+}
+
+.payment-card.selected {
+  background-color: var(--color-primary);
+  box-shadow: 0 20px 40px rgba(0, 136, 255, 0.3);
+  z-index: 2;
+  animation: subtleFloat 6s ease-in-out infinite;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Lighting/Sheen Effect for Selected Card */
+.payment-card.selected::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.1) 40%,
+    rgba(255, 255, 255, 0.2) 50%,
+    rgba(255, 255, 255, 0.1) 60%,
+    transparent 80%
+  );
+  animation: cardSheen 4s infinite linear; /* Reduced duration, linear for consistent speed */
+  pointer-events: none;
+  transform: skewX(-20deg);
+}
+
+@keyframes cardSheen {
+  0% { left: -150%; }
+  50% { left: 150%; } /* Move completely across */
+  100% { left: 150%; } /* Stay out of view for the rest of the loop (pause effect) */
+}
+
+.card-title {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.card-subtitle {
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.card-footer {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.icon-group {
+  display: flex;
+  align-items: center;
+}
+
+.icon-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+.payment-card:not(.selected) .icon-circle {
+  background-color: var(--color-primary);
+  color: #ffffff;
+}
+
+.payment-card.selected .icon-circle {
+  background-color: #ffffff;
+  color: var(--color-primary);
+}
+
+.plus-text {
+  margin-left: 8px;
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.select-badge {
+  background: #ffffff;
+  color: var(--color-primary);
+  padding: 10px 20px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  transform: translateX(10px);
+  transition: all 0.3s ease;
+  pointer-events: none;
+}
+
+.payment-card.selected .select-badge,
+.crypto-card.selected .select-badge,
+.crypto-accordion.selected-parent .select-badge,
+.chain-row .select-badge {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+/* PREMIUM CONTINUE BUTTON */
+.continue-button-container {
+  margin-top: auto;
+  padding-bottom: 12px;
+  width: 100%;
+}
+
+.continue-button {
+  position: relative;
+  background-color: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius-button);
+  padding: 18px;
+  font-size: 19px;
+  font-weight: 600;
+  width: 100%;
+  cursor: pointer;
+  overflow: hidden;
+  /* Premium border/outline from the reference */
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+  transition: transform 0.1s ease;
+}
+
+.continue-button:active {
+  transform: scale(0.98);
+}
+
+/* The Sheen Animation for Button */
+.continue-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    120deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  transition: all 0.6s;
+  animation: shine 3s infinite linear;
+}
+
+@keyframes shine {
+  0% { left: -100%; }
+  20% { left: 100%; }
+  100% { left: 100%; }
+}
+
+/* Crypto Payment Page Styles */
+.payment-info {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-top: 10px;
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding-bottom: 24px;
+}
+
+.payment-info::-webkit-scrollbar {
+  display: none;
+}
+
+.instruction-text {
+  font-size: 15px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  text-align: left;
+}
+
+.payment-address-card {
+  background-color: var(--color-card-dark);
+  border-radius: 28px;
+  padding: 20px 24px; /* Reduced vertical padding from 24px to 20px */
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.payment-address-title {
+  font-size: 20px;
+  font-weight: 500;
+  color: #ffffff;
+}
+
+.payment-address-title b {
+  font-weight: 700;
+}
+
+.payment-address-title .currency-highlight {
+  color: #a855f7; /* Matching the Solana purple from draft */
+}
+
+.address-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.address-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  word-break: break-all;
+  text-align: left;
+  line-height: 1.4;
+  flex: 1;
+}
+
+.qr-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.qr-container {
+  width: 280px;
+  height: 280px;
+  background-color: white;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.qr-note {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  text-align: center;
+  opacity: 0.8;
+}
+
+/* Select Crypto Page Styles */
+.crypto-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px; /* Increased gap from 12px */
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding-bottom: 20px;
+}
+
+.crypto-card {
+  border-radius: 40px;
+  padding: 16px 24px; /* Increased vertical padding from 12px */
+  background-color: var(--color-card-dark);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  gap: 16px; /* Increased gap between icon and text */
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 72px; /* Set a larger min-height */
+}
+
+.crypto-card.selected,
+.crypto-accordion.selected-parent {
+  background-color: var(--color-primary);
+  border-color: rgba(255, 255, 255, 0.1);
+  animation: subtleFloat 6s ease-in-out infinite;
+  box-shadow: 0 10px 30px rgba(0, 136, 255, 0.3);
+  position: relative;
+  overflow: hidden;
+  /* Stabilize layout to prevent shrinking */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.crypto-card.selected::after,
+.crypto-accordion.selected-parent::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.1) 40%,
+    rgba(255, 255, 255, 0.2) 50%,
+    rgba(255, 255, 255, 0.1) 60%,
+    transparent 80%
+  );
+  animation: cardSheen 4s infinite linear;
+  pointer-events: none;
+  transform: skewX(-20deg);
+}
+
+.crypto-card .icon-circle {
+  width: 40px; /* Larger icons */
+  height: 40px;
+  background: none;
+  box-shadow: none;
+  transition: all 0.3s ease;
+}
+
+/* Removed the filter that turned icons white */
+
+.crypto-name {
+  font-size: 20px;
+  font-weight: 600;
+  flex: 1;
+}
+
+/* Accordion / Nested Chain selection */
+.crypto-accordion {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-card-dark);
+  border-radius: 40px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.accordion-header {
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  min-height: 72px;
+  position: relative;
+  z-index: 2;
+}
+
+.accordion-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.expanded .accordion-content {
+  grid-template-rows: 1fr;
+}
+
+.accordion-content-inner {
+  overflow: hidden;
+}
+
+.chain-options {
+  display: flex;
+  flex-direction: column;
+  padding: 0 0 16px 0;
+  gap: 8px;
+}
+
+.chain-row {
+  padding: 12px 24px 12px 64px; /* More indentation */
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.selected-parent .chain-row {
+  color: white;
+}
+
+.chain-name {
+  font-size: 18px;
+  font-weight: 600;
+  flex: 1;
+}
+
+.chevron-icon {
+  transition: transform 0.3s ease;
+  color: var(--color-text-secondary);
+  transform: rotate(180deg); /* Default pointing down */
+}
+
+.expanded .chevron-icon {
+  transform: rotate(0deg); /* Expanded pointing up */
+}
+
+.selected-parent .chevron-icon,
+.selected-parent .crypto-name {
+  color: white;
+}
+
+.timer-badge {
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 6px 12px;
+  border-radius: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--color-primary);
+  border: 1px solid rgba(0, 136, 255, 0.2);
+}
+
+.timer-badge.urgent {
+  color: #ff4444;
+  border-color: rgba(255, 68, 68, 0.3);
+  background-color: rgba(255, 68, 68, 0.1);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+
+/* New Crypto Payment Page Styles */
+.payment-card-premium {
+  background-color: var(--color-card-dark);
+  border-radius: 24px;
+  padding: 24px;
+  margin-top: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.payment-title-text {
+  font-size: 20px;
+  font-weight: 500;
+  margin-bottom: 16px;
+  color: #fff;
+  line-height: 1.4;
+}
+
+.address-copy-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.address-copy-container:active {
+  opacity: 0.7;
+}
+
+.view-details-toggle {
+  color: #0088FF;
+  font-size: 15px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  margin: 12px auto;
+  text-decoration: none;
+  width: fit-content;
+}
+
+.view-details-toggle svg {
+  margin-top: 2px; /* Move chevron down slightly for alignment */
+}
+
+.view-details-content {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+  text-align: center;
+  padding: 0 20px;
+  margin-bottom: 24px;
+}
+
+.timer-box {
+  background-color: transparent; /* Remove background */
+  padding: 0;
+  display: flex;
+  flex-direction: row; /* One line */
+  align-items: baseline;
+  gap: 8px;
+  border: none; /* Remove border */
+}
+
+.timer-label {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  text-transform: none; /* Keep natural case or match user preference */
+  letter-spacing: normal;
+  margin-bottom: 0;
+}
+
+.timer-value {
+  font-family: inherit; /* Match label font */
+  font-size: 24px; /* Matched with h2 size */
+  font-weight: 700; /* Matched with h2 weight */
+  color: #fff;
+}
+
+.timer-value.urgent {
+  color: #ff4444;
+}
+
+.qr-section-premium {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-top: 10px;
+}
+
+.qr-frame {
+  background-color: #fff;
+  border-radius: 4px; /* Matches the sharp but slightly rounded look */
+  padding: 12px;
+  width: 280px;
+  height: 280px;
+}
+
+.qr-subtext {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-top: 8px;
+}
+
+/* Loader and Success Styles */
+.loader {
+  width: 48px;
+  height: 48px;
+  border: 5px solid #FFF;
+  border-bottom-color: var(--color-primary);
+  border-radius: 50%;
+  display: inline-block;
+  box-sizing: border-box;
+  animation: rotation 1s linear infinite;
+}
+
+@keyframes rotation {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.success-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  gap: 20px;
+}
+
+.success-icon {
+  width: 80px;
+  height: 80px;
+  background: var(--color-primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  box-shadow: 0 0 30px rgba(0, 136, 255, 0.4);
+}
+
+.secure-footer {
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  padding: 4px 0 16px 0;
+  letter-spacing: 0.2px;
+}
