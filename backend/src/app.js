@@ -1,0 +1,255 @@
+import Fastify from 'fastify';
+import dotenv from 'dotenv';
+import { TelegramService } from './services/telegram.js';
+import { log } from './utils/logger.js';
+import { DB } from './db.js';
+import { validateTelegramData } from './utils/auth.js';
+import { validateShippingInfo, sanitizeCode, validateContactInfo } from './utils/validation.js';
+import { OxaPayService } from './services/oxapay.js';
+
+import fastifyCors from '@fastify/cors';
+import fastifyStatic from '@fastify/static';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+dotenv.config();
+console.log('DEBUG: Backend starting... PORT:', process.env.PORT);
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const fastify = Fastify({
+    logger: true, // Enable standard logging
+    trustProxy: true 
+});
+
+// --- CONFIG ---
+const PORT = process.env.PORT || 8080;
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
+const OXAPAY_MERCHANT_KEY = process.env.OXAPAY_MERCHANT_KEY;
+const BACKEND_BASE_URL = process.env.BACKEND_BASE_URL;
+
+// Services
+const telegramService = new TelegramService(TELEGRAM_BOT_TOKEN);
+const oxapayService = new OxaPayService(OXAPAY_MERCHANT_KEY);
+
+// --- PLUGINS ---
+fastify.register(fastifyCors, {
+    origin: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Telegram-Init-Data']
+});
+
+// Serve Frontend Static Files
+fastify.register(fastifyStatic, {
+    root: path.join(__dirname, '../../frontend/dist'),
+    prefix: '/',
+});
+
+// Handle Frontend Routing
+fastify.setNotFoundHandler((request, reply) => {
+    if (request.url.startsWith('/v1')) {
+        return reply.status(404).send({ error: 'API route not found' });
+    }
+    return reply.sendFile('index.html');
+});
+
+// --- MIDDLEWARE / HOOKS ---
+fastify.addHook('onRequest', async (request, reply) => {
+    // Log basic info for every request
+    log('INFO', `${request.method} ${request.url}`);
+
+    const publicRoutes = ['/', '/healthz', '/v1/telegram/webhook', '/v1/payments/webhook/oxapay'];
+    const isStaticAsset = /\.(js|css|svg|png|jpg|jpeg|gif|ico|woff|woff2|ttf|otf)$/i.test(request.url) || request.url.startsWith('/assets/');
+    
+    if (publicRoutes.includes(request.url) || isStaticAsset) return;
+
+    // Public API Routes (Job and Order routes are public for the customer)
+    const publicApiRoutes = ['/v1/jobs', '/v1/orders', '/v1/payments/currencies'];
+    const isPublicApiRoute = publicApiRoutes.some(route => request.url.startsWith(route));
+    
+    if (isPublicApiRoute) return;
+
+    // Optional: Web App Routes (Requires Init Data Signature)
+    // We've moved currencies to public, so this part might be empty for now
+    // but kept for future restricted routes.
+});
+
+// --- ROUTES ---
+fastify.get('/healthz', async () => {
+    return { ok: true, version: "1.0.0" };
+});
+
+fastify.get('/v1/payments/currencies', async (request, reply) => {
+    try {
+        log('INFO', 'Fetching currencies from OxaPay');
+        const currencies = await oxapayService.getSupportedCurrencies();
+        return { status: 'ok', currencies };
+    } catch (err) {
+        log('ERROR', 'Failed to fetch currencies', { error: err.message });
+        return reply.status(500).send({ status: 'error', message: err.message });
+    }
+});
+
+fastify.get('/v1/jobs/:id', async (request, reply) => {
+    const jobId = request.params.id;
+    log('INFO', `Fetching job details for: ${jobId}`);
+    const job = DB.getJob(jobId);
+    if (!job) {
+        log('WARN', `Job not found in database: ${jobId}`);
+        return reply.status(404).send({ status: 'error', message: 'Job not found' });
+    }
+    log('INFO', `Job found: ${jobId}`, { amount: job.amount });
+    return { status: 'ok', job };
+});
+
+fastify.get('/v1/orders/:id', async (request, reply) => {
+    const orderId = request.params.id;
+    const order = DB.getOrder(orderId);
+    if (!order) {
+        return reply.status(404).send({ error: 'Order not found' });
+    }
+    
+    return { 
+        status: order.status,
+        id: order.id,
+        payAmount: order.pay_amount,
+        address: order.pay_address,
+        payAddress: order.pay_address,
+        payCurrency: order.pay_currency,
+        networkName: order.network_name,
+        qrcode: order.qrcode,
+        expiredAt: order.expired_at,
+        payLink: order.external_id ? `https://pay.oxapay.com/redirect/${order.external_id}` : null
+    };
+});
+
+fastify.post('/v1/orders', async (request, reply) => {
+    const { shipping, paymentMethod, jobId, tipAmount, contact } = request.body || {};
+    
+    const contactValidation = validateContactInfo(contact);
+    if (!contactValidation.isValid) {
+        return reply.status(400).send({ 
+            status: 'error', 
+            message: contactValidation.errors.join(', ') 
+        });
+    }
+
+    const job = jobId ? DB.getJob(jobId) : null;
+    let priceUSD = job ? job.amount : parseFloat(process.env.PRODUCT_PRICE || "399");
+    const tip = parseFloat(tipAmount || 0);
+    const finalPriceUSD = priceUSD + tip;
+
+    const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    let payAmountUSD = finalPriceUSD;
+
+    // Apply 10% discount for crypto
+    if (paymentMethod === 'crypto') {
+        const discount = payAmountUSD * 0.10;
+        payAmountUSD = parseFloat((payAmountUSD - discount).toFixed(2));
+    }
+
+    try {
+        DB.createOrder({
+            id: orderId,
+            jobId: jobId,
+            amount: payAmountUSD,
+            tipAmount: tip,
+            currency: 'USD',
+            shippingInfo: shipping || {},
+            email: contactValidation.sanitized.email,
+            phone: contactValidation.sanitized.phone
+        });
+        return { status: 'ok', orderId };
+    } catch (err) {
+        log('ERROR', 'Failed to create order', { orderId, error: err.message });
+        return reply.status(500).send({ status: 'error', message: err.message });
+    }
+});
+
+fastify.post('/v1/orders/:id/payments/oxapay', async (request, reply) => {
+    let { currency, network } = request.body || {};
+    currency = sanitizeCode(currency);
+    network = sanitizeCode(network);
+
+    if (!currency || !network) {
+        return reply.status(400).send({ status: 'error', message: 'Invalid currency or network' });
+    }
+
+    const orderId = request.params.id;
+    const order = DB.getOrder(orderId);
+
+    if (!order) {
+        return reply.status(404).send({ error: 'Order not found' });
+    }
+
+    try {
+        let cleanBaseUrl = (BACKEND_BASE_URL || 'http://localhost').replace(/\/$/, '');
+        if (!cleanBaseUrl.startsWith('http')) {
+            cleanBaseUrl = `https://${cleanBaseUrl}`;
+        }
+        
+        const callbackUrl = `${cleanBaseUrl}/v1/payments/webhook/oxapay`;
+        
+        const invoice = await oxapayService.createInvoice(
+            order.amount,
+            currency,
+            network,
+            orderId,
+            callbackUrl
+        );
+
+        DB.updateOrderPayment(orderId, {
+            externalId: invoice.invoiceId,
+            payAmount: invoice.payAmount,
+            payAddress: invoice.address,
+            payCurrency: invoice.payCurrency,
+            qrcode: invoice.qrcode,
+            networkName: invoice.networkName,
+            expiredAt: invoice.expiredAt
+        });
+
+        return { status: 'ok', ...invoice };
+    } catch (err) {
+        log('ERROR', 'OxaPay payment initialization failed', { orderId, error: err.message });
+        return reply.status(500).send({ status: 'error', message: err.message });
+    }
+});
+
+fastify.post('/v1/payments/webhook/oxapay', async (request) => {
+    const data = request.body;
+    if (data.status === 'paid' || data.status === 'confirmed') {
+        DB.updateOrderStatus(data.trackId, 'paid');
+    } else if (data.status === 'expired') {
+        DB.updateOrderStatus(data.trackId, 'expired');
+    }
+    return 'ok';
+});
+
+fastify.post('/v1/telegram/webhook', async (request, reply) => {
+    if (TELEGRAM_WEBHOOK_SECRET) {
+        const signature = request.headers['x-telegram-bot-api-secret-token'];
+        if (signature !== TELEGRAM_WEBHOOK_SECRET) {
+            return reply.code(403).send({ status: 'error', message: 'Unauthorized' });
+        }
+    }
+    try {
+        await telegramService.processWebhookUpdate(request.body);
+        return { ok: true };
+    } catch (e) {
+        log('ERROR', 'Webhook processing failed', { error: e.message });
+        return { ok: false };
+    }
+});
+
+const start = async () => {
+    try {
+        await fastify.listen({ port: PORT, host: '0.0.0.0' });
+        log('INFO', `Server listening on port ${PORT}`);
+    } catch (err) {
+        fastify.log.error(err);
+        process.exit(1);
+    }
+};
+
+start();
