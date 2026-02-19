@@ -201,7 +201,7 @@ const App = () => {
 
     if (view === 'tip') {
       return (
-        <PageLayout>
+        <PageLayout className="sticky-select-layout">
           <TipPage 
             onBack={() => handleViewChange('contact')} 
             onContinue={(tipVal) => { 
@@ -220,7 +220,7 @@ const App = () => {
 
     if (view === 'select-crypto') {
       return (
-        <PageLayout>
+        <PageLayout className="sticky-select-layout">
           <SelectCryptoPage 
             onBack={() => handleViewChange('tip')} 
             onSelect={(id) => { setSelectedCrypto(id); handleStartCheckout(tip); }} 

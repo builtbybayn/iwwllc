@@ -118,12 +118,12 @@ const TipPage = ({ onBack, onContinue, baseAmount }) => {
             )}
           </div>
         </div>
-      </div>
 
-      <div style={{ textAlign: 'center', margin: '32px 0' }}>
-        <div style={{ color: 'var(--color-text-secondary)', fontSize: '13px', letterSpacing: '1px', marginBottom: '4px' }}>TOTAL TO PAY</div>
-        <div style={{ fontSize: '42px', fontWeight: '800' }}>
-          ${totalAmount.toFixed(2)}
+        <div style={{ textAlign: 'center', margin: '32px 0 16px 0' }}>
+          <div style={{ color: 'var(--color-text-secondary)', fontSize: '13px', letterSpacing: '1px', marginBottom: '4px' }}>TOTAL TO PAY</div>
+          <div style={{ fontSize: '42px', fontWeight: '800' }}>
+            ${totalAmount.toFixed(2)}
+          </div>
         </div>
       </div>
 
