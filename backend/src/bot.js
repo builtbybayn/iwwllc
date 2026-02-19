@@ -58,6 +58,27 @@ async function sendMessage(chatId, text, replyMarkup = {}) {
     }
 }
 
+async function sendPhoto(chatId, photoUrl, caption, replyMarkup = {}) {
+    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`;
+    const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            chat_id: chatId,
+            photo: photoUrl,
+            caption: caption,
+            parse_mode: 'MarkdownV2',
+            reply_markup: replyMarkup
+        })
+    });
+    const data = await resp.json();
+    if (!data.ok) {
+        console.error('[BOT] SendPhoto Failed:', data.description);
+    }
+}
+
+const userStates = {};
+
 async function startBot() {
     if (!TELEGRAM_BOT_TOKEN) {
         console.error('Missing TELEGRAM_BOT_TOKEN in .env');
@@ -66,7 +87,7 @@ async function startBot() {
 
     console.log('🤖 Window Cleaning Bot is running...');
     console.log(`Whitelisted Users: ${WHITELISTED_USERS.join(', ')}`);
-    
+
     let offset = 0;
     while (true) {
         try {
@@ -78,7 +99,7 @@ async function startBot() {
                     offset = update.update_id + 1;
                     const msg = update.message;
                     if (!msg) continue;
-                    
+
                     const chatId = String(msg.chat.id);
                     const text = msg.text || '';
                     const userId = String(msg.from?.id);
@@ -94,33 +115,45 @@ async function startBot() {
 
                     if (text === '/start') {
                         await sendMessage(chatId, `
-🚀 *Window Cleaning Payment Bot* 🚀
+✨ *Island Window Wizards LLC Bot* ✨
+Use this to create secure payment links for customers\\.
 
-Use \`/newjob [amount] [description]\` to create a payment link\\.
-Example: \`/newjob 125 Front windows and roof gutters\`
+🚀 *Quick Method*
+Type \`/job [amount] [description]\`
+_Example: \`/job 125 Full Exterior Cleaning\`_
+
+💬 *Step\\-by\\-Step Method*
+Just type \`/job\` and I will guide you through it\\.
                         `.trim());
-                    } else if (text.startsWith('/newjob')) {
-                        const parts = text.split(' ');
-                        if (parts.length < 3) {
-                            await sendMessage(chatId, '❌ Invalid format\\. Use \`/newjob [amount] [description]\`');
+                        userStates[userId] = null;
+                        continue;
+                    }
+
+                    // Handle Interactive Flow States
+                    if (userStates[userId]) {
+                        if (userStates[userId].state === 'AWAITING_AMOUNT') {
+                            const amount = parseFloat(text);
+                            if (isNaN(amount)) {
+                                await sendMessage(chatId, '❌ Invalid amount\\. Please enter a number \\(e\\.g\\. 125\\)\\.');
+                                continue;
+                            }
+                            userStates[userId] = { state: 'AWAITING_DESCRIPTION', amount };
+                            await sendMessage(chatId, escapeMarkdownV2('What is the description of the job?'));
                             continue;
                         }
 
-                        const amount = parseFloat(parts[1]);
-                        if (isNaN(amount)) {
-                            await sendMessage(chatId, '❌ Invalid amount\\. Please enter a number\\.');
-                            continue;
-                        }
+                        if (userStates[userId].state === 'AWAITING_DESCRIPTION') {
+                            const description = text;
+                            const amount = userStates[userId].amount;
+                            const jobId = generateJobId();
 
-                        const description = parts.slice(2).join(' ');
-                        const jobId = generateJobId();
-                        
-                        DB.createJob(jobId, amount, description);
+                            DB.createJob(jobId, amount, description);
+                            userStates[userId] = null;
 
-                        const payUrl = `${WEB_APP_URL}/?jobId=${jobId}`;
-                        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(payUrl)}`;
+                            const payUrl = `${WEB_APP_URL}/?jobId=${jobId}`;
+                            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(payUrl)}`;
 
-                        await sendMessage(chatId, `
+                            await sendPhoto(chatId, qrUrl, `
 ✅ *Job Created\\!*
 
 💰 *Amount:* $${escapeMarkdownV2(amount.toFixed(2))}
@@ -128,16 +161,57 @@ Example: \`/newjob 125 Front windows and roof gutters\`
 
 🔗 *Payment Link:*
 [${escapeMarkdownV2(payUrl)}](${escapeLinkUrl(payUrl)})
+                            `.trim(), {
+                                inline_keyboard: [[
+                                    { text: "🔗 Open Payment Page", url: payUrl }
+                                ]]
+                            });
+                            log('INFO', 'New job created via bot (interactive)', { jobId, amount, userId });
+                            continue;
+                        }
+                    }
 
-📱 *Scan to Pay:*
-[QR Code](${escapeLinkUrl(qrUrl)})
-                        `.trim(), {
-                            inline_keyboard: [[
-                                { text: "🔗 Open Payment Page", url: payUrl }
-                            ]]
-                        });
-                        
-                        log('INFO', 'New job created via bot', { jobId, amount, userId });
+                    if (text.startsWith('/job')) {
+                        const parts = text.split(' ');
+
+                        // Single-line Flow
+                        if (parts.length >= 3) {
+                            const amount = parseFloat(parts[1]);
+                            if (isNaN(amount)) {
+                                await sendMessage(chatId, '❌ Invalid amount\\. Please enter a number\\.');
+                                continue;
+                            }
+
+                            const description = parts.slice(2).join(' ');
+                            const jobId = generateJobId();
+
+                            DB.createJob(jobId, amount, description);
+
+                            const payUrl = `${WEB_APP_URL}/?jobId=${jobId}`;
+                            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(payUrl)}`;
+
+                            await sendPhoto(chatId, qrUrl, `
+✅ *Job Created\\!*
+
+💰 *Amount:* $${escapeMarkdownV2(amount.toFixed(2))}
+📝 *Job:* ${escapeMarkdownV2(description)}
+
+🔗 *Payment Link:*
+[${escapeMarkdownV2(payUrl)}](${escapeLinkUrl(payUrl)})
+                            `.trim(), {
+                                inline_keyboard: [[
+                                    { text: "🔗 Open Payment Page", url: payUrl }
+                                ]]
+                            });
+
+                            log('INFO', 'New job created via bot (single-line)', { jobId, amount, userId });
+                            userStates[userId] = null;
+                        }
+                        // Start Interactive Flow
+                        else {
+                            userStates[userId] = { state: 'AWAITING_AMOUNT' };
+                            await sendMessage(chatId, escapeMarkdownV2('How much is the job for? Enter a number.'));
+                        }
                     }
                 }
             }
