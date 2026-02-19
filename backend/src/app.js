@@ -163,9 +163,9 @@ fastify.post('/v1/orders', async (request, reply) => {
     const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     let payAmountUSD = finalPriceUSD;
 
-    // Apply 10% discount for crypto
+    // Apply 5% discount for crypto
     if (paymentMethod === 'crypto') {
-        const discount = payAmountUSD * 0.10;
+        const discount = payAmountUSD * 0.05;
         payAmountUSD = parseFloat((payAmountUSD - discount).toFixed(2));
     }
 
