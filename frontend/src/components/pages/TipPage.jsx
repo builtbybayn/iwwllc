@@ -3,7 +3,7 @@ import { triggerHaptic } from '../../utils';
 
 const TipPage = ({ onBack, onContinue, baseAmount }) => {
   const [selectedTip, setSelectedTip] = useState(null);
-  const [customTip, setCustomTip] = useState('');
+  const [customTipCents, setCustomTipCents] = useState(0);
   const [isCustom, setIsCustom] = useState(false);
 
   const tips = [
@@ -17,7 +17,7 @@ const TipPage = ({ onBack, onContinue, baseAmount }) => {
     triggerHaptic('light');
     let finalTip = 0;
     if (isCustom) {
-      finalTip = parseFloat(customTip) || 0;
+      finalTip = customTipCents / 100;
     } else if (selectedTip !== null) {
       finalTip = selectedTip;
     }
@@ -36,7 +36,21 @@ const TipPage = ({ onBack, onContinue, baseAmount }) => {
     setSelectedTip(null);
   };
 
-  const totalAmount = baseAmount + (isCustom ? (parseFloat(customTip) || 0) : (selectedTip || 0));
+  const handleCustomInputChange = (e) => {
+    const digits = e.target.value.replace(/\D/g, '');
+    if (digits.length <= 7) {
+      setCustomTipCents(parseInt(digits || '0', 10));
+    }
+  };
+
+  const formatDisplay = (cents) => {
+    return (cents / 100).toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const totalAmount = baseAmount + (isCustom ? (customTipCents / 100) : (selectedTip || 0));
 
   return (
     <>
@@ -49,73 +63,70 @@ const TipPage = ({ onBack, onContinue, baseAmount }) => {
         <h2 style={{ margin: 0 }}>Add Tip?</h2>
       </div>
 
-      <p style={{ color: 'var(--color-text-secondary)', marginBottom: '24px' }}>
-        A tip is not expected but is greatly appreciated.
-      </p>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        <p style={{ color: 'var(--color-text-secondary)', marginBottom: '24px' }}>
+          A tip is not expected but is greatly appreciated.
+        </p>
 
-      <div className="crypto-list" style={{ gap: '16px', paddingTop: '8px' }}>
-        {tips.map((tip, idx) => (
-          <div 
-            key={idx}
-            className={`crypto-card ${!isCustom && selectedTip === tip.value ? 'selected' : ''}`}
-            onClick={() => handleSelectTip(tip.value)}
-          >
-            <div className="crypto-name" style={{ fontSize: '22px', fontWeight: '700' }}>{tip.label}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              {tip.value > 0 && (
-                <div style={{ 
-                  fontSize: '17px', 
-                  fontWeight: '600', 
-                  opacity: !isCustom && selectedTip === tip.value ? 1 : 0.6 
-                }}>
-                  +${tip.value.toFixed(2)}
-                </div>
-              )}
-              {!isCustom && selectedTip === tip.value && (
-                <div className="select-badge" style={{ opacity: 1, transform: 'none' }} onClick={(e) => { e.stopPropagation(); handleContinue(); }}>
-                  Select <svg width="18" height="12" viewBox="0 0 18 12" fill="none"><path d="M12 1L17 6L12 11M1 6H17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                </div>
-              )}
+        <div className="crypto-list" style={{ gap: '16px', paddingTop: '8px' }}>
+          {tips.map((tip, idx) => (
+            <div 
+              key={idx}
+              className={`crypto-card ${!isCustom && selectedTip === tip.value ? 'selected' : ''}`}
+              onClick={() => handleSelectTip(tip.value)}
+            >
+              <div className="crypto-name" style={{ fontSize: '22px', fontWeight: '700' }}>{tip.label}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {tip.value > 0 && (
+                  <div style={{ 
+                    fontSize: '17px', 
+                    fontWeight: '600', 
+                    opacity: !isCustom && selectedTip === tip.value ? 1 : 0.6 
+                  }}>
+                    +${tip.value.toFixed(2)}
+                  </div>
+                )}
+                {!isCustom && selectedTip === tip.value && (
+                  <div className="select-badge" style={{ opacity: 1, transform: 'none' }} onClick={(e) => { e.stopPropagation(); handleContinue(); }}>
+                    Select <svg width="18" height="12" viewBox="0 0 18 12" fill="none"><path d="M12 1L17 6L12 11M1 6H17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
 
-        <div 
-          className={`crypto-card ${isCustom ? 'selected' : ''}`}
-          onClick={handleSelectCustom}
-        >
-          <div className="crypto-name" style={{ fontSize: '22px', fontWeight: '700' }}>Custom</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {isCustom ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ fontSize: '18px', fontWeight: '600' }}>$</span>
-                <input 
-                  type="number" 
-                  autoFocus
-                  value={customTip}
-                  onChange={(e) => setCustomTip(e.target.value)}
-                  placeholder="0.00"
-                  style={{
-                    width: '70px',
-                    padding: '4px 0',
-                    background: 'transparent',
-                    border: 'none',
-                    borderBottom: '2px solid rgba(255,255,255,0.5)',
-                    color: '#fff',
-                    fontSize: '18px',
-                    fontWeight: '600',
-                    textAlign: 'center',
-                    outline: 'none'
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              </div>
-            ) : null}
-            {isCustom && (
-              <div className="select-badge" style={{ opacity: 1, transform: 'none' }} onClick={(e) => { e.stopPropagation(); handleContinue(); }}>
-                Select <svg width="18" height="12" viewBox="0 0 18 12" fill="none"><path d="M12 1L17 6L12 11M1 6H17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </div>
-            )}
+          <div 
+            className={`crypto-card ${isCustom ? 'selected' : ''}`}
+            onClick={handleSelectCustom}
+          >
+            <div className="crypto-name" style={{ fontSize: '22px', fontWeight: '700' }}>Custom</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              {isCustom ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ fontSize: '18px', fontWeight: '600' }}>$</span>
+                  <input 
+                    type="text"
+                    inputMode="numeric"
+                    autoFocus
+                    value={formatDisplay(customTipCents)}
+                    onChange={handleCustomInputChange}
+                    style={{
+                      width: '100px',
+                      padding: '4px 0',
+                      background: 'transparent',
+                      border: 'none',
+                      borderBottom: '2px solid rgba(255,255,255,0.5)',
+                      color: '#fff',
+                      fontSize: '18px',
+                      fontWeight: '600',
+                      textAlign: 'center',
+                      outline: 'none'
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
 
