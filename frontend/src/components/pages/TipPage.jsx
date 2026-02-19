@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { triggerHaptic } from '../../utils';
 
-const TipPage = ({ onBack, onContinue, baseAmount }) => {
+const TipPage = ({ onBack, onContinue, baseAmount, paymentMethod }) => {
   const [selectedTip, setSelectedTip] = useState(null);
   const [customTipCents, setCustomTipCents] = useState(0);
   const [isCustom, setIsCustom] = useState(false);
+
+  const discount = paymentMethod === 'crypto' ? (baseAmount * 0.05) : 0;
 
   const tips = [
     { label: '10%', value: baseAmount * 0.10 },
@@ -50,7 +52,8 @@ const TipPage = ({ onBack, onContinue, baseAmount }) => {
     });
   };
 
-  const totalAmount = baseAmount + (isCustom ? (customTipCents / 100) : (selectedTip || 0));
+  const currentTip = (isCustom ? (customTipCents / 100) : (selectedTip || 0));
+  const totalAmount = baseAmount - discount + currentTip;
 
   return (
     <>
@@ -131,6 +134,11 @@ const TipPage = ({ onBack, onContinue, baseAmount }) => {
         </div>
 
         <div style={{ textAlign: 'center', margin: '32px 0 16px 0' }}>
+          {discount > 0 && (
+            <div style={{ color: 'var(--color-text-secondary)', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>
+              Crypto Discount Applied: -${discount.toFixed(2)}
+            </div>
+          )}
           <div style={{ color: 'var(--color-text-secondary)', fontSize: '13px', letterSpacing: '1px', marginBottom: '4px' }}>TOTAL TO PAY</div>
           <div style={{ fontSize: '42px', fontWeight: '800' }}>
             ${totalAmount.toFixed(2)}

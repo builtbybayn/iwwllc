@@ -158,16 +158,17 @@ fastify.post('/v1/orders', async (request, reply) => {
     const job = jobId ? DB.getJob(jobId) : null;
     let priceUSD = job ? job.amount : parseFloat(process.env.PRODUCT_PRICE || "399");
     const tip = parseFloat(tipAmount || 0);
-    const finalPriceUSD = priceUSD + tip;
+
+    let discount = 0;
+    // Apply 5% discount for crypto (only on base price)
+    if (paymentMethod === 'crypto') {
+        discount = priceUSD * 0.05;
+    }
+
+    const finalPriceUSD = parseFloat((priceUSD - discount + tip).toFixed(2));
 
     const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     let payAmountUSD = finalPriceUSD;
-
-    // Apply 5% discount for crypto
-    if (paymentMethod === 'crypto') {
-        const discount = payAmountUSD * 0.05;
-        payAmountUSD = parseFloat((payAmountUSD - discount).toFixed(2));
-    }
 
     try {
         DB.createOrder({
@@ -247,7 +248,7 @@ fastify.post('/v1/payments/webhook/oxapay', async (request) => {
 
 fastify.post('/v1/payments/stripe/create-checkout-session', async (request, reply) => {
     try {
-        const { amount, tipAmount, description, customerEmail, orderId } = request.body || {};
+        const { amount, tipAmount, description, customerEmail, orderId, jobId } = request.body || {};
         
         const total = parseFloat(amount) + parseFloat(tipAmount || 0);
         const unitAmount = Math.round(total * 100);
@@ -271,8 +272,8 @@ fastify.post('/v1/payments/stripe/create-checkout-session', async (request, repl
             ],
             customer_email: customerEmail,
             mode: 'payment',
-            success_url: `${FRONTEND_URL}/?view=success&session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${FRONTEND_URL}/?view=cancel`,
+            success_url: `${FRONTEND_URL}/?jobId=${jobId}&view=success&session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${FRONTEND_URL}/?jobId=${jobId}&view=payment`,
             metadata: {
                 order_id: orderId,
                 service_amount: amount,

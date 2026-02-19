@@ -119,7 +119,8 @@ const App = () => {
                 tipAmount: finalTip, 
                 description: job?.description, 
                 customerEmail: contact.email,
-                orderId: data.orderId
+                orderId: data.orderId,
+                jobId: job?.id
               })
             });
             const stripeData = await stripeRes.json();
@@ -154,6 +155,17 @@ const App = () => {
   );
 
   const renderView = () => {
+    if (loading) {
+      return (
+        <PageLayout>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+            <div className="loader"></div>
+            <p style={{ marginTop: '16px', opacity: 0.6, fontWeight: '500' }}>Preparing secure checkout...</p>
+          </div>
+        </PageLayout>
+      );
+    }
+
     if (view === 'success') return (
       <PageLayout className="success-view">
         <SuccessPage />
@@ -237,6 +249,7 @@ const App = () => {
               }
             }} 
             baseAmount={job?.amount || 0} 
+            paymentMethod={selectedMethod}
           />
         </PageLayout>
       );
