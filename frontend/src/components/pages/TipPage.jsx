@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { triggerHaptic } from '../../utils';
 
 const TipPage = ({ onBack, onContinue, baseAmount }) => {
   const [selectedTip, setSelectedTip] = useState(null);
@@ -13,6 +14,7 @@ const TipPage = ({ onBack, onContinue, baseAmount }) => {
   ];
 
   const handleContinue = () => {
+    triggerHaptic('light');
     let finalTip = 0;
     if (isCustom) {
       finalTip = parseFloat(customTip) || 0;
@@ -23,11 +25,13 @@ const TipPage = ({ onBack, onContinue, baseAmount }) => {
   };
 
   const handleSelectTip = (val) => {
+    triggerHaptic('selection');
     setSelectedTip(val);
     setIsCustom(false);
   };
 
   const handleSelectCustom = () => {
+    triggerHaptic('selection');
     setIsCustom(true);
     setSelectedTip(null);
   };
@@ -37,7 +41,7 @@ const TipPage = ({ onBack, onContinue, baseAmount }) => {
   return (
     <>
       <div className="view-header">
-        <button className="back-button" onClick={onBack}>
+        <button className="back-button" onClick={() => { triggerHaptic('light'); onBack(); }}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>

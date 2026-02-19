@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CryptoIcon, ChevronIcon } from '../icons';
-import { getIcon, getAuthHeaders } from '../../utils';
+import { getIcon, getAuthHeaders, triggerHaptic } from '../../utils';
 import { BACKEND_URL, iconMap } from '../../constants';
 
 // We need to import the specific icons used in fallbackCoins as they are now in constants
@@ -130,17 +130,21 @@ const SelectCryptoPage = ({ onBack, onSelect }) => {
     if (coin.networks.length === 1) {
       const netId = coin.networks[0].id;
       if (selectedCoin === netId) {
+        triggerHaptic('light');
         onSelect(netId);
       } else {
+        triggerHaptic('selection');
         setSelectedCoin(netId);
       }
       setExpanded(null);
     } else {
+      triggerHaptic('soft');
       setExpanded(expanded === coin.id ? null : coin.id);
     }
   };
 
   const handleNetworkClick = (network) => {
+    triggerHaptic('selection');
     setSelectedCoin(network.id);
   };
 
@@ -155,7 +159,7 @@ const SelectCryptoPage = ({ onBack, onSelect }) => {
   return (
     <>
       <div className="view-header" style={{ marginBottom: '12px' }}>
-        <button className="back-button" onClick={onBack}>
+        <button className="back-button" onClick={() => { triggerHaptic('light'); onBack(); }}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
@@ -174,7 +178,7 @@ const SelectCryptoPage = ({ onBack, onSelect }) => {
                 <CryptoIcon src={coin.icon} size={40} />
                 <div className="crypto-name">{coin.name}</div>
                 {selectedCoin === coin.networks[0].id && (
-                  <div className="select-badge" style={{ opacity: 1, transform: 'none' }} onClick={(e) => { e.stopPropagation(); onSelect(coin.networks[0].id); }}>
+                  <div className="select-badge" style={{ opacity: 1, transform: 'none' }} onClick={(e) => { e.stopPropagation(); triggerHaptic('light'); onSelect(coin.networks[0].id); }}>
                     Select <svg width="18" height="12" viewBox="0 0 18 12" fill="none"><path d="M12 1L17 6L12 11M1 6H17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   </div>
                 )}
@@ -198,7 +202,7 @@ const SelectCryptoPage = ({ onBack, onSelect }) => {
                           <CryptoIcon src={network.icon} size={28} />
                           <div className="chain-name" style={{ fontSize: '17px' }}>{network.name}</div>
                           {selectedCoin === network.id && (
-                            <div className="select-badge" style={{ opacity: 1, transform: 'none', padding: '6px 12px' }} onClick={(e) => { e.stopPropagation(); onSelect(network.id); }}>
+                            <div className="select-badge" style={{ opacity: 1, transform: 'none', padding: '6px 12px' }} onClick={(e) => { e.stopPropagation(); triggerHaptic('light'); onSelect(network.id); }}>
                               Select <svg width="18" height="12" viewBox="0 0 18 12" fill="none"><path d="M12 1L17 6L12 11M1 6H17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                             </div>
                           )}
@@ -217,7 +221,7 @@ const SelectCryptoPage = ({ onBack, onSelect }) => {
         <button 
           className="continue-button" 
           disabled={!selectedCoin}
-          onClick={() => onSelect(selectedCoin)}
+          onClick={() => { triggerHaptic('light'); onSelect(selectedCoin); }}
         >
           Continue
         </button>

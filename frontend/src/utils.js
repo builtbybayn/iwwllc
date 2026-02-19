@@ -29,3 +29,26 @@ export const getAuthHeaders = () => {
     'X-Telegram-Init-Data': initData
   };
 };
+
+export const triggerHaptic = (style = 'light') => {
+  const tg = window.Telegram?.WebApp;
+  if (!tg?.HapticFeedback) return;
+
+  switch (style) {
+    case 'light':
+    case 'medium':
+    case 'heavy':
+    case 'rigid':
+    case 'soft':
+      tg.HapticFeedback.impactOccurred(style);
+      break;
+    case 'success':
+    case 'warning':
+    case 'error':
+      tg.HapticFeedback.notificationOccurred(style);
+      break;
+    case 'selection':
+      tg.HapticFeedback.selectionChanged();
+      break;
+  }
+};

@@ -7,7 +7,7 @@ import {
   applePayIcon, 
   BACKEND_URL 
 } from './constants'
-import { getAuthHeaders } from './utils'
+import { getAuthHeaders, triggerHaptic } from './utils'
 import pfpLogo from './assets/icons/pfp-2026.png'
 
 // Pages
@@ -29,6 +29,16 @@ const App = () => {
   const [job, setJob] = useState(null)
   const [contact, setContact] = useState({ email: '', phone: '' })
   const [tip, setTip] = useState(0)
+
+  const handleViewChange = (newView) => {
+    triggerHaptic('light');
+    setView(newView);
+  };
+
+  const handleMethodSelect = (method) => {
+    triggerHaptic('selection');
+    setSelectedMethod(method);
+  };
 
   useEffect(() => {
     const tg = window.Telegram?.WebApp
@@ -75,6 +85,7 @@ const App = () => {
   }, [])
 
   const handleStartCheckout = async (finalTip = tip) => {
+    triggerHaptic('rigid');
     setLoading(true);
     try {
       const res = await fetch(`${BACKEND_URL}/v1/orders`, {
@@ -126,14 +137,14 @@ const App = () => {
     );
     if (view === 'timeout') return (
       <PageLayout className="success-view">
-        <TimeoutPage onBack={() => setView('payment')} />
+        <TimeoutPage onBack={() => handleViewChange('payment')} />
       </PageLayout>
     );
 
     if (view === 'landing') {
       return (
         <PageLayout>
-          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '16px' }}>
             <div style={{ 
               width: '100px', 
               height: '100px', 
@@ -145,17 +156,14 @@ const App = () => {
             }}>
               <img src={pfpLogo} style={{ width: '100%', height: '100%', objectFit: 'contain' }} alt="Island Window Wizards" />
             </div>
-            <h1 style={{ fontSize: '28px', margin: '0 0 8px 0' }}>Job Payment</h1>
-            <p style={{ color: 'var(--color-text-secondary)', fontSize: '16px' }}>
-              Complete payment for your service.
-            </p>
+            <h1 style={{ fontSize: '28px', margin: 0 }}>Job Payment</h1>
           </div>
 
           {job ? (
             <div className="payment-card-premium fade-in-up-subtle" style={{ marginBottom: '32px', padding: '20px 24px' }}>
-              <div style={{ color: '#fff', fontWeight: '700', fontSize: '12px', marginBottom: '6px', letterSpacing: '0.5px' }}>DESCRIPTION</div>
+              <div style={{ color: 'var(--color-text-secondary)', fontWeight: '400', fontSize: '14px', marginBottom: '4px' }}>Description</div>
               <div style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px', lineHeight: '1.4' }}>{job.description}</div>
-              <div style={{ color: '#fff', fontWeight: '700', fontSize: '12px', marginBottom: '6px', letterSpacing: '0.5px' }}>AMOUNT DUE</div>
+              <div style={{ color: 'var(--color-text-secondary)', fontWeight: '400', fontSize: '14px', marginBottom: '4px' }}>Amount Due</div>
               <div style={{ fontSize: '32px', fontWeight: '800' }}>${job.amount.toFixed(2)}</div>
             </div>
           ) : jobLoading ? (
@@ -172,7 +180,7 @@ const App = () => {
           )}
 
           <div className="continue-button-container">
-            <button className="continue-button" onClick={() => setView('payment')} disabled={!job}>
+            <button className="continue-button" onClick={() => handleViewChange('payment')} disabled={!job}>
               Continue
             </button>
           </div>
@@ -184,8 +192,8 @@ const App = () => {
       return (
         <PageLayout>
           <ContactInfoPage 
-            onBack={() => setView('payment')} 
-            onContinue={(info) => { setContact(info); setView('tip'); }} 
+            onBack={() => handleViewChange('payment')} 
+            onContinue={(info) => { setContact(info); handleViewChange('tip'); }} 
           />
         </PageLayout>
       );
@@ -195,11 +203,11 @@ const App = () => {
       return (
         <PageLayout>
           <TipPage 
-            onBack={() => setView('contact')} 
+            onBack={() => handleViewChange('contact')} 
             onContinue={(tipVal) => { 
               setTip(tipVal); 
               if (selectedMethod === 'crypto') {
-                setView('select-crypto');
+                handleViewChange('select-crypto');
               } else {
                 handleStartCheckout(tipVal);
               }
@@ -214,7 +222,7 @@ const App = () => {
       return (
         <PageLayout>
           <SelectCryptoPage 
-            onBack={() => setView('tip')} 
+            onBack={() => handleViewChange('tip')} 
             onSelect={(id) => { setSelectedCrypto(id); handleStartCheckout(tip); }} 
           />
         </PageLayout>
@@ -227,9 +235,9 @@ const App = () => {
           <CryptoPaymentPage 
             orderId={orderId} 
             selection={selectedCrypto} 
-            onSuccess={() => setView('success')} 
-            onTimeout={() => setView('timeout')}
-            onBack={() => setView('tip')} 
+            onSuccess={() => handleViewChange('success')} 
+            onTimeout={() => handleViewChange('timeout')}
+            onBack={() => handleViewChange('tip')} 
           />
         </PageLayout>
       );
@@ -239,7 +247,7 @@ const App = () => {
     return (
       <PageLayout>
         <div className="view-header">
-          <button className="back-button" onClick={() => setView('landing')}>
+          <button className="back-button" onClick={() => handleViewChange('landing')}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
@@ -254,7 +262,7 @@ const App = () => {
         <div className="payment-options">
           <div 
             className={`payment-card ${selectedMethod === 'crypto' ? 'selected' : ''}`}
-            onClick={() => setSelectedMethod('crypto')}
+            onClick={() => handleMethodSelect('crypto')}
           >
             <div className="card-title">Crypto (Save 10%)</div>
             <div className="card-subtitle">Fastest & Easiest</div>
@@ -264,13 +272,13 @@ const App = () => {
                 <div className="icon-circle" style={{ background: selectedMethod === 'crypto' ? 'white' : '#0088FF', color: selectedMethod === 'crypto' ? '#0088FF' : 'white', marginLeft: -12 }}><MonochromeIcon src={btcMono} size={24} /></div>
                 <span className="plus-text">+10</span>
               </div>
-              <div className="select-badge" onClick={(e) => { e.stopPropagation(); setView('contact'); }}>Select <svg width="18" height="12" viewBox="0 0 18 12" fill="none"><path d="M12 1L17 6L12 11M1 6H17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg></div>
+              <div className="select-badge" onClick={(e) => { e.stopPropagation(); handleViewChange('contact'); }}>Select <svg width="18" height="12" viewBox="0 0 18 12" fill="none"><path d="M12 1L17 6L12 11M1 6H17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg></div>
             </div>
           </div>
 
           <div 
             className={`payment-card ${selectedMethod === 'card' ? 'selected' : ''}`}
-            onClick={() => setSelectedMethod('card')}
+            onClick={() => handleMethodSelect('card')}
           >
             <div className="card-title">Credit / Debit Card</div>
             <div className="card-subtitle">Instant, secure checkout</div>
@@ -280,13 +288,13 @@ const App = () => {
                 <div className="icon-circle" style={{ background: selectedMethod === 'card' ? 'white' : '#0088FF', color: selectedMethod === 'card' ? '#0088FF' : 'white', marginLeft: -12 }}><MonochromeIcon src={applePayIcon} size={24} /></div>
                 <span className="plus-text">+2</span>
               </div>
-              <div className="select-badge" onClick={(e) => { e.stopPropagation(); setView('contact'); }}>Select <svg width="18" height="12" viewBox="0 0 18 12" fill="none"><path d="M12 1L17 6L12 11M1 6H17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg></div>
+              <div className="select-badge" onClick={(e) => { e.stopPropagation(); handleViewChange('contact'); }}>Select <svg width="18" height="12" viewBox="0 0 18 12" fill="none"><path d="M12 1L17 6L12 11M1 6H17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg></div>
             </div>
           </div>
         </div>
 
         <div className="continue-button-container">
-          <button className="continue-button" onClick={() => setView('contact')}>
+          <button className="continue-button" onClick={() => handleViewChange('contact')}>
             Continue
           </button>
         </div>
@@ -295,12 +303,14 @@ const App = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'var(--color-bg)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--color-bg)' }}>
       <div className="brand-banner">
         Island Window Wizards LLC
       </div>
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {renderView()}
+        <div key={view} className="view-transition-wrapper">
+          {renderView()}
+        </div>
       </div>
     </div>
   )

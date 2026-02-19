@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CheckIcon, CopyIcon } from '../icons';
-import { normalizeNetwork, getIcon, getAuthHeaders } from '../../utils';
+import { normalizeNetwork, getIcon, getAuthHeaders, triggerHaptic } from '../../utils';
 import { BACKEND_URL, currencyThemeMap } from '../../constants';
 
 const CryptoPaymentPage = ({ onBack, orderId, selection, onSuccess, onTimeout }) => {
@@ -65,6 +65,7 @@ const CryptoPaymentPage = ({ onBack, orderId, selection, onSuccess, onTimeout })
               if (pollData.status === 'paid') {
                 clearInterval(pollInterval);
                 if (timerInterval) clearInterval(timerInterval);
+                triggerHaptic('success');
                 onSuccess();
               } else if (pollData.status === 'expired') {
                 clearInterval(pollInterval);
@@ -105,9 +106,7 @@ const CryptoPaymentPage = ({ onBack, orderId, selection, onSuccess, onTimeout })
     navigator.clipboard.writeText(paymentData.address);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    if (window.Telegram?.WebApp?.HapticFeedback) {
-      window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
-    }
+    triggerHaptic('success');
   };
 
   const handleCopyAmount = () => {
@@ -115,9 +114,7 @@ const CryptoPaymentPage = ({ onBack, orderId, selection, onSuccess, onTimeout })
     navigator.clipboard.writeText(paymentData.payAmount.toString());
     setCopiedAmount(true);
     setTimeout(() => setCopiedAmount(false), 2000);
-    if (window.Telegram?.WebApp?.HapticFeedback) {
-      window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
-    }
+    triggerHaptic('success');
   };
 
   if (loading) {
@@ -135,7 +132,7 @@ const CryptoPaymentPage = ({ onBack, orderId, selection, onSuccess, onTimeout })
         <div style={{ fontSize: 48 }}>⚠️</div>
         <h3 style={{ marginTop: 24 }}>Something went wrong</h3>
         <p style={{ color: 'var(--color-text-secondary)', marginBottom: 32, padding: '0 20px', lineHeight: 1.5 }}>{error}</p>
-        <button className="continue-button" onClick={onBack}>Go Back</button>
+        <button className="continue-button" onClick={() => { triggerHaptic('light'); onBack(); }}>Go Back</button>
       </div>
     );
   }
@@ -166,7 +163,7 @@ const CryptoPaymentPage = ({ onBack, orderId, selection, onSuccess, onTimeout })
     <>
       <div className="view-header" style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button className="back-button" onClick={onBack}>
+          <button className="back-button" onClick={() => { triggerHaptic('light'); onBack(); }}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
@@ -208,7 +205,7 @@ const CryptoPaymentPage = ({ onBack, orderId, selection, onSuccess, onTimeout })
               </div>
             </div>
 
-            <div className="view-details-toggle" style={{ color: 'var(--color-primary)' }} onClick={() => setShowDetails(!showDetails)}>
+            <div className="view-details-toggle" style={{ color: 'var(--color-primary)' }} onClick={() => { triggerHaptic('soft'); setShowDetails(!showDetails); }}>
               View Details <svg width="12" height="8" viewBox="0 0 12 8" fill="none" style={{ transform: showDetails ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}><path d="M1 1L6 6L11 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </div>
 

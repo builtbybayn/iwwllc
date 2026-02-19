@@ -26,22 +26,46 @@ body {
 }
 
 #root {
-  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   width: 100%;
   max-width: 480px; /* Standard premium mobile width for desktop viewing */
 }
 
+::selection {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+.view-transition-wrapper {
+  animation: fadeIn 0.3s ease-out;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .brand-banner {
-  background-color: var(--color-bg);
+  background-color: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   color: var(--color-text);
   text-align: center;
-  padding: 16px 0 8px 0;
+  padding: calc(16px + env(safe-area-inset-top)) 0 12px 0;
   font-size: 19px;
   font-weight: 600;
   width: 100%;
   letter-spacing: -0.3px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 @keyframes fadeInUpSubtle {
@@ -67,6 +91,8 @@ body {
   transition: opacity 0.3s ease;
   overflow-y: auto;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  min-height: 0;
 }
 
 .app-container::-webkit-scrollbar {
@@ -82,6 +108,7 @@ body {
   padding-bottom: 20px;
   flex: 1;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 .form-container::-webkit-scrollbar {
@@ -316,7 +343,7 @@ body {
 /* PREMIUM CONTINUE BUTTON */
 .continue-button-container {
   margin-top: auto;
-  padding-bottom: 12px;
+  padding-bottom: 8px;
   width: 100%;
 }
 
@@ -338,7 +365,8 @@ body {
 }
 
 .continue-button:active {
-  transform: scale(0.98);
+  transform: scale(0.96);
+  filter: brightness(1.1);
 }
 
 /* The Sheen Animation for Button */
@@ -780,6 +808,6 @@ body {
   text-align: center;
   font-size: 12px;
   color: var(--color-text-secondary);
-  padding: 4px 0 16px 0;
+  padding: 8px 0 calc(8px + env(safe-area-inset-bottom)) 0;
   letter-spacing: 0.2px;
 }
