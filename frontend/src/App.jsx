@@ -52,6 +52,12 @@ const App = () => {
     // Fetch Job if jobId is in URL
     const urlParams = new URLSearchParams(window.location.search)
     const jobId = urlParams.get('jobId')
+    const initialView = urlParams.get('view')
+    
+    if (initialView) {
+      setView(initialView);
+    }
+
     if (jobId) {
       if (jobId === 'test') {
         setJob({
@@ -104,9 +110,27 @@ const App = () => {
         if (selectedMethod === 'crypto') {
           setView('crypto-payment');
         } else {
-          const stripeBaseUrl = import.meta.env.VITE_STRIPE_URL || 'https://buy.stripe.com/your_default_link';
-          const stripeUrl = `${stripeBaseUrl}?client_reference_id=${data.orderId}&prefilled_email=${encodeURIComponent(contact.email)}`;
-          window.location.href = stripeUrl;
+          try {
+            const stripeRes = await fetch(`${BACKEND_URL}/v1/payments/stripe/create-checkout-session`, {
+              method: 'POST',
+              headers: getAuthHeaders(),
+              body: JSON.stringify({ 
+                amount: job?.amount, 
+                tipAmount: finalTip, 
+                description: job?.description, 
+                customerEmail: contact.email,
+                orderId: data.orderId
+              })
+            });
+            const stripeData = await stripeRes.json();
+            if (stripeData.status === 'ok') {
+              window.location.href = stripeData.url;
+            } else {
+              alert(stripeData.message || 'Failed to create Stripe session');
+            }
+          } catch (err) {
+            alert('Failed to connect to Stripe service');
+          }
         }
       } else {
         alert(data.message || 'Failed to create order');
@@ -255,16 +279,12 @@ const App = () => {
           <h2 style={{ margin: 0 }}>Payment Method</h2>
         </div>
 
-        <p style={{ color: 'var(--color-text-secondary)', marginBottom: '24px' }}>
-          Select how you would like to pay for your service.
-        </p>
-
-        <div className="payment-options">
+        <div className="payment-options" style={{ marginTop: '8px' }}>
           <div 
             className={`payment-card ${selectedMethod === 'crypto' ? 'selected' : ''}`}
             onClick={() => handleMethodSelect('crypto')}
           >
-            <div className="card-title">Crypto (Save 10%)</div>
+            <div className="card-title">Crypto (Save 5%)</div>
             <div className="card-subtitle">Fastest & Easiest</div>
             <div className="card-footer">
               <div className="icon-group">

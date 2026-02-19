@@ -99,15 +99,16 @@ export const DB = {
         `).run(externalId, payAmount, payAddress, payCurrency, qrcode, networkName, expiredAt, orderId);
     },
 
-    updateOrderStatus: (externalId, status) => {
+    updateOrderStatus: (id, status, isExternal = false) => {
+        const idColumn = isExternal ? 'external_id' : 'id';
         // Find order to update job status as well
-        const order = db.prepare('SELECT job_id FROM orders WHERE external_id = ?').get(externalId);
+        const order = db.prepare(`SELECT job_id FROM orders WHERE ${idColumn} = ?`).get(id);
         
         db.prepare(`
             UPDATE orders 
             SET status = ?, updated_at = CURRENT_TIMESTAMP 
-            WHERE external_id = ?
-        `).run(status, externalId);
+            WHERE ${idColumn} = ?
+        `).run(status, id);
 
         if (order && order.job_id && (status === 'paid' || status === 'confirmed')) {
             db.prepare('UPDATE jobs SET status = "paid" WHERE id = ?').run(order.job_id);

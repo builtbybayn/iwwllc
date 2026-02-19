@@ -6,6 +6,7 @@ import { DB } from './db.js';
 import { validateTelegramData } from './utils/auth.js';
 import { sanitizeCode, validateContactInfo } from './utils/validation.js';
 import { OxaPayService } from './services/oxapay.js';
+import Stripe from 'stripe';
 
 import fastifyCors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
@@ -28,10 +29,13 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
 const OXAPAY_MERCHANT_KEY = process.env.OXAPAY_MERCHANT_KEY;
 const BACKEND_BASE_URL = process.env.BACKEND_BASE_URL;
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+const FRONTEND_URL = process.env.WEB_APP_URL || 'http://localhost:5173';
 
 // Services
 const telegramService = new TelegramService(TELEGRAM_BOT_TOKEN);
 const oxapayService = new OxaPayService(OXAPAY_MERCHANT_KEY);
+const stripe = new Stripe(STRIPE_SECRET_KEY);
 
 // --- PLUGINS ---
 fastify.register(fastifyCors, {
@@ -55,6 +59,22 @@ fastify.setNotFoundHandler((request, reply) => {
 });
 
 // --- MIDDLEWARE / HOOKS ---
+fastify.addHook('preParsing', async (request, reply, payload) => {
+    if (request.url === '/v1/payments/webhook/stripe') {
+        const chunks = [];
+        for await (const chunk of payload) {
+            chunks.push(chunk);
+        }
+        const rawBody = Buffer.concat(chunks);
+        request.rawBody = rawBody;
+        
+        // Re-create the stream for the next parsers
+        const { Readable } = await import('node:stream');
+        return Readable.from(rawBody);
+    }
+    return payload;
+});
+
 fastify.addHook('onRequest', async (request, reply) => {
     // Log basic info for every request
     log('INFO', `${request.method} ${request.url}`);
@@ -218,11 +238,84 @@ fastify.post('/v1/orders/:id/payments/oxapay', async (request, reply) => {
 fastify.post('/v1/payments/webhook/oxapay', async (request) => {
     const data = request.body;
     if (data.status === 'paid' || data.status === 'confirmed') {
-        DB.updateOrderStatus(data.trackId, 'paid');
+        DB.updateOrderStatus(data.trackId, 'paid', true);
     } else if (data.status === 'expired') {
-        DB.updateOrderStatus(data.trackId, 'expired');
+        DB.updateOrderStatus(data.trackId, 'expired', true);
     }
     return 'ok';
+});
+
+fastify.post('/v1/payments/stripe/create-checkout-session', async (request, reply) => {
+    try {
+        const { amount, tipAmount, description, customerEmail, orderId } = request.body || {};
+        
+        const total = parseFloat(amount) + parseFloat(tipAmount || 0);
+        const unitAmount = Math.round(total * 100);
+
+        log('INFO', 'Creating Stripe Checkout Session', { orderId, total });
+
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            line_items: [
+                {
+                    price_data: {
+                        currency: 'usd',
+                        product_data: {
+                            name: description || 'Window Cleaning Service',
+                            description: `Service: $${amount} + Tip: $${tipAmount || 0}`,
+                        },
+                        unit_amount: unitAmount,
+                    },
+                    quantity: 1,
+                },
+            ],
+            customer_email: customerEmail,
+            mode: 'payment',
+            success_url: `${FRONTEND_URL}/?view=success&session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${FRONTEND_URL}/?view=cancel`,
+            metadata: {
+                order_id: orderId,
+                service_amount: amount,
+                tip_amount: tipAmount,
+                description: description
+            }
+        });
+
+        return { status: 'ok', url: session.url };
+    } catch (err) {
+        log('ERROR', 'Stripe session creation failed', { error: err.message });
+        return reply.status(500).send({ status: 'error', message: err.message });
+    }
+});
+
+fastify.post('/v1/payments/webhook/stripe', async (request, reply) => {
+    const sig = request.headers['stripe-signature'];
+    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    let event;
+
+    try {
+        // Use the raw body buffer captured in the preParsing hook
+        event = stripe.webhooks.constructEvent(request.rawBody, sig, endpointSecret);
+    } catch (err) {
+        log('ERROR', 'Stripe Webhook Signature Verification Failed', { error: err.message });
+        return reply.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    if (event.type === 'checkout.session.completed') {
+        const session = event.data.object;
+        const orderId = session.metadata.order_id;
+        
+        log('INFO', 'Stripe Checkout Session Completed', { orderId, email: session.customer_details.email });
+        
+        // Update order status
+        DB.updateOrderStatus(orderId, 'paid');
+        
+        // In a real app, trigger receipt email here
+        // sendReceiptEmail(session.customer_details.email, session.metadata);
+    }
+
+    return { received: true };
 });
 
 fastify.post('/v1/telegram/webhook', async (request, reply) => {
