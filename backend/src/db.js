@@ -32,7 +32,6 @@ db.exec(`
         network_name TEXT,
         qrcode TEXT,
         expired_at INTEGER,
-        shipping_info TEXT,
         email TEXT,
         phone TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -83,11 +82,11 @@ export const DB = {
 
     // --- Orders ---
     createOrder: (orderData) => {
-        const { id, jobId, amount, tipAmount, currency, shippingInfo, email, phone } = orderData;
+        const { id, jobId, amount, tipAmount, currency, email, phone } = orderData;
         db.prepare(`
-            INSERT INTO orders (id, job_id, amount, tip_amount, currency, shipping_info, email, phone) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(id, jobId, amount, tipAmount, currency, JSON.stringify(shippingInfo), email, phone);
+            INSERT INTO orders (id, job_id, amount, tip_amount, currency, email, phone) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(id, jobId, amount, tipAmount, currency, email, phone);
         return id;
     },
 

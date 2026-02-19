@@ -4,7 +4,7 @@ import { TelegramService } from './services/telegram.js';
 import { log } from './utils/logger.js';
 import { DB } from './db.js';
 import { validateTelegramData } from './utils/auth.js';
-import { validateShippingInfo, sanitizeCode, validateContactInfo } from './utils/validation.js';
+import { sanitizeCode, validateContactInfo } from './utils/validation.js';
 import { OxaPayService } from './services/oxapay.js';
 
 import fastifyCors from '@fastify/cors';
@@ -125,7 +125,7 @@ fastify.get('/v1/orders/:id', async (request, reply) => {
 });
 
 fastify.post('/v1/orders', async (request, reply) => {
-    const { shipping, paymentMethod, jobId, tipAmount, contact } = request.body || {};
+    const { paymentMethod, jobId, tipAmount, contact } = request.body || {};
     
     const contactValidation = validateContactInfo(contact);
     if (!contactValidation.isValid) {
@@ -156,7 +156,6 @@ fastify.post('/v1/orders', async (request, reply) => {
             amount: payAmountUSD,
             tipAmount: tip,
             currency: 'USD',
-            shippingInfo: shipping || {},
             email: contactValidation.sanitized.email,
             phone: contactValidation.sanitized.phone
         });

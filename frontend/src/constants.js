@@ -92,10 +92,6 @@ export const currencyThemeMap = {
   'TRX': { name: 'TRX', color: '#ff060a' }
 };
 
-export const countries = [
-  "United States", "United Kingdom", "Canada", "Australia", "Germany", "France", "Spain", "Italy", "Japan", "China", "India", "Brazil", "Mexico", "Netherlands", "Sweden", "Norway", "Denmark", "Finland", "Switzerland", "Austria", "Belgium", "Portugal", "Greece", "Ireland", "New Zealand", "Singapore", "South Korea", "United Arab Emirates"
-].sort();
-
 export {
   btcMono,
   usdcMono,
