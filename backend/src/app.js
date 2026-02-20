@@ -6,6 +6,7 @@ import { DB } from './db.js';
 import { validateTelegramData } from './utils/auth.js';
 import { sanitizeCode, validateContactInfo } from './utils/validation.js';
 import { OxaPayService } from './services/oxapay.js';
+import { GoogleService } from './services/google.js';
 import Stripe from 'stripe';
 
 import fastifyCors from '@fastify/cors';
@@ -31,10 +32,12 @@ const OXAPAY_MERCHANT_KEY = process.env.OXAPAY_MERCHANT_KEY;
 const BACKEND_BASE_URL = process.env.BACKEND_BASE_URL;
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const FRONTEND_URL = process.env.WEB_APP_URL || 'http://localhost:5173';
+const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID;
 
 // Services
 const telegramService = new TelegramService(TELEGRAM_BOT_TOKEN);
 const oxapayService = new OxaPayService(OXAPAY_MERCHANT_KEY);
+const googleService = new GoogleService();
 const stripe = new Stripe(STRIPE_SECRET_KEY);
 
 // --- PLUGINS ---
@@ -240,6 +243,12 @@ fastify.post('/v1/payments/webhook/oxapay', async (request) => {
     const data = request.body;
     if (data.status === 'paid' || data.status === 'confirmed') {
         DB.updateOrderStatus(data.trackId, 'paid', true);
+        
+        // Update Google Sheets
+        const order = DB.getOrderByExternalId(data.trackId);
+        if (order && order.job_id) {
+            await googleService.updateInvoiceStatus(GOOGLE_SHEET_ID, order.job_id, 'PAID');
+        }
     } else if (data.status === 'expired') {
         DB.updateOrderStatus(data.trackId, 'expired', true);
     }
@@ -311,6 +320,12 @@ fastify.post('/v1/payments/webhook/stripe', async (request, reply) => {
         
         // Update order status
         DB.updateOrderStatus(orderId, 'paid');
+
+        // Update Google Sheets
+        const order = DB.getOrder(orderId);
+        if (order && order.job_id) {
+            await googleService.updateInvoiceStatus(GOOGLE_SHEET_ID, order.job_id, 'PAID');
+        }
         
         // In a real app, trigger receipt email here
         // sendReceiptEmail(session.customer_details.email, session.metadata);

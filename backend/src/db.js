@@ -119,6 +119,10 @@ export const DB = {
         return db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
     },
 
+    getOrderByExternalId: (externalId) => {
+        return db.prepare('SELECT * FROM orders WHERE external_id = ?').get(externalId);
+    },
+
     // --- Telegram Chats ---
     getChat: (chatId) => {
         return db.prepare('SELECT * FROM allowed_chats WHERE chat_id = ?').get(String(chatId));
