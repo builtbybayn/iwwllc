@@ -158,15 +158,38 @@ async function startBot() {
                         continue;
                     }
 
-                    if (text === '/start' || text === '/help') {
+                    if (text === '/start') {
                         await sendMessage(chatId, `
-✨ *Island Window Wizards LLC Bot* ✨
+⚡ *Island Window Wizards LLC* ⚡
 
 💰 \`/invoice\` \\- Create payment link
 📊 \`/lead\` \\- Add customer lead
 📅 \`/book\` \\- Schedule booking
 🛠 \`/cancel\` \\- Stop current flow
-❓ \`/help\` \\- Show this menu
+
+_Type \`/help\` for advanced usage_
+                        `.trim());
+                        userStates[userId] = null;
+                        continue;
+                    }
+
+                    if (text === '/help') {
+                        await sendMessage(chatId, `
+🛠 *Advanced Command Usage*
+
+💰 *Invoices*
+\`/invoice [amount] [description]\`
+_Ex: \`/invoice 125 Exterior Cleaning\`_
+
+📊 *Leads*
+\`/lead [name] [phone] [description]\`
+_Ex: \`/lead John 555-0199 New House\`_
+
+📅 *Bookings*
+\`/book [name], [date], [time], [price], [desc]\`
+_Ex: \`/book John, Oct 12, 10am, 150, Full\`_
+
+⚡ *Tip:* Type any command without arguments to use the interactive guide\\.
                         `.trim());
                         userStates[userId] = null;
                         continue;
