@@ -162,21 +162,11 @@ async function startBot() {
                         await sendMessage(chatId, `
 ✨ *Island Window Wizards LLC Bot* ✨
 
-💰 *Payments*
-\`/invoice\` \\- Create a payment link step\\-by\\-step
-\`/invoice [amount] [description]\` \\- Quick creation
-
-📊 *Leads*
-\`/lead\` \\- Add a lead step\\-by\\-step
-\`/lead [name] [phone] [description]\` \\- Quick lead
-
-📅 *Bookings*
-\`/book\` \\- Add booking to Sheet & Calendar
-\`/book [name], [date], [time], [price], [description]\`
-
-🛠 *General*
-\`/cancel\` \\- Stop any active step\\-by\\-step flow
-\`/help\` \\- Show this menu again
+💰 \`/invoice\` \\- Create payment link
+📊 \`/lead\` \\- Add customer lead
+📅 \`/book\` \\- Schedule booking
+🛠 \`/cancel\` \\- Stop current flow
+❓ \`/help\` \\- Show this menu
                         `.trim());
                         userStates[userId] = null;
                         continue;
