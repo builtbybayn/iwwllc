@@ -9,6 +9,13 @@ I built this system to automate the entire lifecycle from a single Telegram inte
 
 https://github.com/user-attachments/assets/ac738d38-bc6d-4323-976f-513ad6e1bf93
 
+### Payment Interface
+The customer invoice page (`pay.iwwllc.com`).
+
+| Payment Selection        | Success & Receipt                |
+| ------------------------ | -------------------------------- |
+| ![Select](./assets/payment.png) | ![Success](./assets/success.png) |
+
 ### Telegram Command Center
 Managing leads and invoices directly from the chat.
 
@@ -16,17 +23,11 @@ Managing leads and invoices directly from the chat.
 | -------------------------- | -------------------------------- |
 | ![Lead](./assets/lead.png) | ![Invoice](./assets/invoice.png) |
 
-### Payment Interface
-The customer-facing invoice page (`pay.iwwllc.com`).
-
-| Payment Selection        | Success & Receipt                |
-| ------------------------ | -------------------------------- |
-| ![Select](./assets/payment.png) | ![Success](./assets/success.png) |
-
 ### Automatic Data Sync
 All data is instantly logged to the master Google Sheet for accounting.
 
 ![Google Sheet Dashboard](./assets/spreadsheet.png)
+
 ## Architecture
 
 ### Telegram Bot
