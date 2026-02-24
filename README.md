@@ -7,7 +7,7 @@ I built this system to automate the entire lifecycle from a single Telegram inte
 
 ## Demo
 
-https://github.com/user-attachments/assets/273f38ca-8763-4476-a570-6180e7990873
+https://github.com/user-attachments/assets/ac738d38-bc6d-4323-976f-513ad6e1bf93
 
 ### Telegram Command Center
 Managing leads and invoices directly from the chat.
@@ -46,7 +46,7 @@ Headless React app hosted on our VPS backend and pointed to by our domain.
 *   **Webhooks:** Listens for Stripe/Oxapay success events to trigger instant email receipts (via Resend) and update the sheet status to "PAID".
 
 ## Tech Stack 
-• **Frontend**: React, Vite, Tailwind CSS
-• **Backend**: Node.js, Fastify
-• **Infrastructure**: Nginx, PM2, Debian VPS
-• **Integrations**: Stripe, Oxapay, Google Sheets API, Telegram Bot API
+*   **Frontend**: React, Vite, Tailwind CSS
+*   **Backend**: Node.js, Fastify
+*   **Infrastructure**: Nginx, PM2, Debian VPS
+*   **Integrations**: Stripe, Oxapay, Google Sheets API, Telegram Bot API
