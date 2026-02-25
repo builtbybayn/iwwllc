@@ -16,6 +16,9 @@ build/
 .env.test.local
 .env.production.local
 
+# Google service account key (keep private)
+backend/service-account.json
+
 # Preserve example env files
 !.env.example
 
