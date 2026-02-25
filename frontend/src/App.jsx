@@ -115,12 +115,8 @@ const App = () => {
               method: 'POST',
               headers: getAuthHeaders(),
               body: JSON.stringify({ 
-                amount: job?.amount, 
-                tipAmount: finalTip, 
-                description: job?.description, 
                 customerEmail: contact.email,
-                orderId: data.orderId,
-                jobId: job?.id
+                orderId: data.orderId
               })
             });
             const stripeData = await stripeRes.json();

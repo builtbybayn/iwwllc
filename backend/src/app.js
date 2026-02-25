@@ -8,6 +8,7 @@ import { sanitizeCode, validateContactInfo } from './utils/validation.js';
 import { OxaPayService } from './services/oxapay.js';
 import { GoogleService } from './services/google.js';
 import Stripe from 'stripe';
+import crypto from 'crypto';
 
 import fastifyCors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
@@ -33,6 +34,7 @@ const BACKEND_BASE_URL = process.env.BACKEND_BASE_URL;
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const FRONTEND_URL = process.env.WEB_APP_URL || 'http://localhost:5173';
 const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID;
+const ALLOWED_ORIGINS = [FRONTEND_URL, BACKEND_BASE_URL].filter(Boolean);
 
 // Services
 const telegramService = new TelegramService(TELEGRAM_BOT_TOKEN);
@@ -42,7 +44,7 @@ const stripe = new Stripe(STRIPE_SECRET_KEY);
 
 // --- PLUGINS ---
 fastify.register(fastifyCors, {
-    origin: true,
+    origin: ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS : false,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Telegram-Init-Data']
 });
@@ -63,7 +65,7 @@ fastify.setNotFoundHandler((request, reply) => {
 
 // --- MIDDLEWARE / HOOKS ---
 fastify.addHook('preParsing', async (request, reply, payload) => {
-    if (request.url === '/v1/payments/webhook/stripe') {
+    if (request.url === '/v1/payments/webhook/stripe' || request.url === '/v1/payments/webhook/oxapay') {
         const chunks = [];
         for await (const chunk of payload) {
             chunks.push(chunk);
@@ -239,7 +241,24 @@ fastify.post('/v1/orders/:id/payments/oxapay', async (request, reply) => {
     }
 });
 
-fastify.post('/v1/payments/webhook/oxapay', async (request) => {
+fastify.post('/v1/payments/webhook/oxapay', async (request, reply) => {
+    const signature = request.headers['hmac'];
+    const merchantKey = process.env.OXAPAY_MERCHANT_KEY;
+    const rawBody = request.rawBody;
+
+    if (!rawBody || !merchantKey || !signature) {
+        return reply.status(400).send('invalid signature');
+    }
+
+    const computed = crypto
+        .createHmac('sha512', merchantKey)
+        .update(rawBody)
+        .digest('hex');
+
+    if (computed !== signature) {
+        return reply.status(400).send('invalid signature');
+    }
+
     const data = request.body;
     if (data.status === 'paid' || data.status === 'confirmed') {
         DB.updateOrderStatus(data.trackId, 'paid', true);
@@ -257,12 +276,27 @@ fastify.post('/v1/payments/webhook/oxapay', async (request) => {
 
 fastify.post('/v1/payments/stripe/create-checkout-session', async (request, reply) => {
     try {
-        const { amount, tipAmount, description, customerEmail, orderId, jobId } = request.body || {};
-        
-        const total = parseFloat(amount) + parseFloat(tipAmount || 0);
-        const unitAmount = Math.round(total * 100);
+        const { orderId, customerEmail } = request.body || {};
+        if (!orderId) {
+            return reply.status(400).send({ status: 'error', message: 'Missing orderId' });
+        }
 
-        log('INFO', 'Creating Stripe Checkout Session', { orderId, total });
+        const order = DB.getOrder(orderId);
+        if (!order) {
+            return reply.status(404).send({ status: 'error', message: 'Order not found' });
+        }
+
+        const job = order.job_id ? DB.getJob(order.job_id) : null;
+        const totalAmount = parseFloat(order.amount || 0);
+        const tipAmount = parseFloat(order.tip_amount || 0);
+        const baseAmount = totalAmount - tipAmount;
+        if (!totalAmount || Number.isNaN(totalAmount) || baseAmount < 0) {
+            return reply.status(400).send({ status: 'error', message: 'Invalid order amount' });
+        }
+
+        const unitAmount = Math.round(totalAmount * 100);
+
+        log('INFO', 'Creating Stripe Checkout Session', { orderId, total: totalAmount });
 
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
@@ -271,23 +305,23 @@ fastify.post('/v1/payments/stripe/create-checkout-session', async (request, repl
                     price_data: {
                         currency: 'usd',
                         product_data: {
-                            name: description || 'Window Cleaning Service',
-                            description: `Service: $${amount} + Tip: $${tipAmount || 0}`,
+                            name: job?.description || process.env.PRODUCT_NAME || 'Window Cleaning Service',
+                            description: `Service: $${baseAmount} + Tip: $${tipAmount}`,
                         },
                         unit_amount: unitAmount,
                     },
                     quantity: 1,
                 },
             ],
-            customer_email: customerEmail,
+            customer_email: order.email || customerEmail,
             mode: 'payment',
-            success_url: `${FRONTEND_URL}/?jobId=${jobId}&view=success&session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${FRONTEND_URL}/?jobId=${jobId}&view=payment`,
+            success_url: `${FRONTEND_URL}/?jobId=${order.job_id || ''}&view=success&session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${FRONTEND_URL}/?jobId=${order.job_id || ''}&view=payment`,
             metadata: {
                 order_id: orderId,
-                service_amount: amount,
+                service_amount: baseAmount,
                 tip_amount: tipAmount,
-                description: description
+                description: job?.description || process.env.PRODUCT_NAME || 'Window Cleaning Service'
             }
         });
 
