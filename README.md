@@ -1,7 +1,6 @@
-
 # Island Window Wizards LLC
 
-We needed a frictionless way to generate invoices in the field, accept Crypto/Card instantly and track contacts without manual data entry.
+We needed a frictionless way to generate invoices in the field, accept Crypto/Card instantly, track contacts and expenses without manual data entry.
 
 I built this system to automate the entire lifecycle from a single Telegram interface.
 
@@ -28,12 +27,15 @@ All data is instantly logged to the master Google Sheet for accounting.
 
 ![Google Sheet Dashboard](./assets/spreadsheet.png)
 
+![Taxes Spreadsheet](./assets/taxes.png)
+
 ## Architecture
 
 ### Telegram Bot
 Acts as the command center. No external dashboard required. Quick and orderly entry.
 *   **Invoicing:** `/invoice 450 "Window cleaning"` generates a unique payment link (`pay.iwwllc.com/?jobid=example`).
 *   **CRM:** `/lead` and `/book` commands parse raw text and route it to the correct database.
+* **Expenses:** `/tax 84.20 "Gas"` (or interactive mode) captures receipt photos, uploads them to Drive, and logs the expense.
 
 ### Payment Page
 Headless React app hosted on our VPS backend and pointed to by our domain.
@@ -43,11 +45,12 @@ Headless React app hosted on our VPS backend and pointed to by our domain.
     *   **Oxapay:** White label crypto checkout with custom UI. (USDC, BTC, ETH, etc.).
 
 ### Backend
-*   **Google Sheets API:** Data persistence layer. Leads, Jobs, and Invoices are logged to specific tabs for organization and easy mobile access.
+*   **Google Sheets API:** Data persistence layer. Leads, Jobs, Invoices, and Taxes are logged to specific tabs.
+*   **Google Drive Integration:** Uses OAuth to securely upload tax receipts. The Sheet uses `=IMAGE()` formulas to render receipt thumbnails directly in the row.
 *   **Webhooks:** Listens for Stripe/Oxapay success events to trigger instant email receipts (via Resend) and update the sheet status to "PAID".
 
 ## Tech Stack 
-*   **Frontend**: React, Vite, Tailwind CSS
-*   **Backend**: Node.js, Fastify
-*   **Infrastructure**: Nginx, PM2, Debian VPS
-*   **Integrations**: Stripe, Oxapay, Google Sheets API, Telegram Bot API
+• **Frontend**: React, Vite, Tailwind CSS
+• **Backend**: Node.js, Fastify
+• **Infrastructure**: Nginx, PM2, Debian VPS
+• **Integrations**: Stripe, Oxapay, Google Sheets/Drive API (OAuth), Telegram Bot API

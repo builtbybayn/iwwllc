@@ -16,10 +16,12 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const WEB_APP_URL = process.env.WEB_APP_URL || 'https://your-frontend-url.com';
 const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID;
 const GOOGLE_CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID;
+const RECEIPTS_DRIVE_FOLDER_ID = process.env.RECEIPTS_DRIVE_FOLDER_ID;
 
 console.log('DEBUG: Google IDs loaded:', { 
     sheet: GOOGLE_SHEET_ID ? 'YES' : 'NO', 
-    calendar: GOOGLE_CALENDAR_ID ? 'YES' : 'NO' 
+    calendar: GOOGLE_CALENDAR_ID ? 'YES' : 'NO',
+    receiptsFolder: RECEIPTS_DRIVE_FOLDER_ID ? 'YES' : 'NO'
 });
 
 const WHITELISTED_USERS = (process.env.WHITELISTED_USERS || '')
@@ -51,6 +53,18 @@ function escapeLinkUrl(str) {
  */
 function generateJobId() {
     return Math.random().toString(36).substring(2, 10);
+}
+
+async function getTelegramFileUrl(fileId) {
+    if (!fileId) return '';
+    try {
+        const resp = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${encodeURIComponent(fileId)}`);
+        const data = await resp.json();
+        if (!data.ok || !data.result?.file_path) return '';
+        return `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${data.result.file_path}`;
+    } catch {
+        return '';
+    }
 }
 
 async function sendMessage(chatId, text, replyMarkup = {}) {
@@ -141,6 +155,7 @@ async function startBot() {
                             let cmdName = 'interactive';
                             if (state.includes('LEAD')) cmdName = 'lead';
                             else if (state.includes('BOOK')) cmdName = 'booking';
+                            else if (state.includes('TAX')) cmdName = 'tax';
                             else if (state.includes('AMOUNT') || state.includes('DESCRIPTION')) cmdName = 'invoice';
                             
                             userStates[userId] = null;
@@ -165,6 +180,7 @@ async function startBot() {
 💰 \`/invoice\` \\- Create payment link
 📊 \`/lead\` \\- Add customer lead
 📅 \`/book\` \\- Schedule booking
+🧾 \`/tax\` \\- Log purchase \\+ receipt
 🛠 \`/cancel\` \\- Stop current flow
 
 _Type \`/help\` for advanced usage_
@@ -188,6 +204,10 @@ _Ex: \`/lead John 555-0199 New House\`_
 📅 *Bookings*
 \`/book [name], [date], [time], [price], [desc]\`
 _Ex: \`/book John, Oct 12, 10am, 150, Full\`_
+
+🧾 *Tax Purchases*
+\`/tax [amount] [description]\`
+_Ex: \`/tax 84.20 Filters and cleaner\`_
 
 ⚡ *Tip:* Type any command without arguments to use the interactive guide\\.
                         `.trim());
@@ -285,6 +305,32 @@ _Saved to Sheet${calendarMsg}_
                         } else {
                             userStates[userId] = { state: 'AWAITING_AMOUNT' };
                             await sendMessage(chatId, escapeMarkdownV2('How much is the invoice for? Enter a number.'));
+                        }
+                        continue;
+                    }
+
+                    if (text.startsWith('/tax')) {
+                        const content = text.replace('/tax', '').trim();
+                        if (!content) {
+                            userStates[userId] = { state: 'AWAITING_TAX_AMOUNT' };
+                            await sendMessage(chatId, escapeMarkdownV2('How much did this purchase cost? Enter a number.'));
+                            continue;
+                        }
+
+                        const contentParts = content.split(' ').filter(Boolean);
+                        const amount = parseFloat(contentParts[0]);
+                        if (isNaN(amount)) {
+                            await sendMessage(chatId, '❌ Invalid amount\\. Please enter a number\\.');
+                            continue;
+                        }
+
+                        const description = contentParts.slice(1).join(' ').trim();
+                        if (description) {
+                            userStates[userId] = { state: 'AWAITING_TAX_RECEIPT', amount, description };
+                            await sendMessage(chatId, escapeMarkdownV2(`Amount saved: $${amount.toFixed(2)}. Description saved. Now upload a picture of the receipt.`));
+                        } else {
+                            userStates[userId] = { state: 'AWAITING_TAX_DESCRIPTION', amount };
+                            await sendMessage(chatId, escapeMarkdownV2('Enter purchase description.'));
                         }
                         continue;
                     }
@@ -404,6 +450,77 @@ _Saved to Sheet${calendarMsg}_
 _Saved to Sheet${calendarMsg}_
                                 `.trim());
                             } catch (e) { await sendMessage(chatId, '❌ Failed to process booking\\. Check server console\\.'); }
+                            userStates[userId] = null;
+                            continue;
+                        }
+
+                        // Tax Flow
+                        if (state === 'AWAITING_TAX_AMOUNT') {
+                            const amount = parseFloat(text);
+                            if (isNaN(amount)) {
+                                await sendMessage(chatId, '❌ Invalid amount\\. Please enter a number \\(e\\.g\\. 84\\.20\\)\\.');
+                                continue;
+                            }
+                            userStates[userId] = { state: 'AWAITING_TAX_DESCRIPTION', amount };
+                            await sendMessage(chatId, escapeMarkdownV2('Enter purchase description.'));
+                            continue;
+                        }
+                        if (state === 'AWAITING_TAX_DESCRIPTION') {
+                            const description = text.trim();
+                            if (!description) {
+                                await sendMessage(chatId, escapeMarkdownV2('Description cannot be empty. Enter purchase description.'));
+                                continue;
+                            }
+                            userStates[userId] = { ...userStates[userId], state: 'AWAITING_TAX_RECEIPT', description };
+                            await sendMessage(chatId, escapeMarkdownV2('Description saved. Now upload a picture of the receipt.'));
+                            continue;
+                        }
+                        if (state === 'AWAITING_TAX_RECEIPT') {
+                            if (!msg.photo || msg.photo.length === 0) {
+                                await sendMessage(chatId, escapeMarkdownV2('Please upload a receipt image. Send /cancel to stop.'));
+                                continue;
+                            }
+
+                            const amount = userStates[userId].amount;
+                            const description = userStates[userId].description || '';
+                            const largestPhoto = msg.photo[msg.photo.length - 1];
+                            const telegramFileId = largestPhoto.file_id;
+                            const telegramFileUrl = await getTelegramFileUrl(telegramFileId);
+
+                            try {
+                                const upload = await googleService.uploadReceiptToDrive({
+                                    fileUrl: telegramFileUrl,
+                                    fileName: `receipt_${userId}_${Date.now()}`,
+                                    folderId: RECEIPTS_DRIVE_FOLDER_ID
+                                });
+                                const createdAt = new Date().toLocaleString([], {
+                                    year: 'numeric',
+                                    month: 'numeric',
+                                    day: 'numeric',
+                                    hour: 'numeric',
+                                    minute: '2-digit'
+                                });
+
+                                await googleService.addEntry(GOOGLE_SHEET_ID, 'Taxes', [
+                                    `$${amount.toFixed(2)}`,
+                                    description,
+                                    upload.previewFormula,
+                                    createdAt,
+                                    upload.receiptUrl,
+                                    telegramFileId,
+                                    upload.driveFileId
+                                ]);
+                                await sendMessage(chatId, `
+✅ *Tax Purchase Saved\\!*
+💰 *Amount:* ${escapeMarkdownV2(`$${amount.toFixed(2)}`)}
+📝 *Description:* ${escapeMarkdownV2(description)}
+🧾 *Receipt:* Uploaded to Drive
+                                `.trim());
+                            } catch (e) {
+                                const errorMsg = e?.message ? String(e.message) : 'Unknown error';
+                                console.error('[TAX] Failed to save purchase:', errorMsg);
+                                await sendMessage(chatId, `❌ Failed to save tax purchase\\.\n\nReason: ${escapeMarkdownV2(errorMsg)}`);
+                            }
                             userStates[userId] = null;
                             continue;
                         }

@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node src/app.js",
     "bot": "node src/bot.js",
-    "dev": "node --watch src/app.js"
+    "dev": "node --watch src/app.js",
+    "style:taxes": "node style-taxes-sheet.js"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.1",
