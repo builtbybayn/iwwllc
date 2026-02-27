@@ -327,7 +327,7 @@ _Saved to Sheet${calendarMsg}_
                         const description = contentParts.slice(1).join(' ').trim();
                         if (description) {
                             userStates[userId] = { state: 'AWAITING_TAX_RECEIPT', amount, description };
-                            await sendMessage(chatId, escapeMarkdownV2(`Amount saved: $${amount.toFixed(2)}. Description saved. Now upload a picture of the receipt.`));
+                            await sendMessage(chatId, escapeMarkdownV2('Now upload a picture of the reciept.'));
                         } else {
                             userStates[userId] = { state: 'AWAITING_TAX_DESCRIPTION', amount };
                             await sendMessage(chatId, escapeMarkdownV2('Enter purchase description.'));
@@ -472,7 +472,7 @@ _Saved to Sheet${calendarMsg}_
                                 continue;
                             }
                             userStates[userId] = { ...userStates[userId], state: 'AWAITING_TAX_RECEIPT', description };
-                            await sendMessage(chatId, escapeMarkdownV2('Description saved. Now upload a picture of the receipt.'));
+                            await sendMessage(chatId, escapeMarkdownV2('Now upload a picture of the reciept.'));
                             continue;
                         }
                         if (state === 'AWAITING_TAX_RECEIPT') {

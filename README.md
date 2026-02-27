@@ -50,7 +50,7 @@ Headless React app hosted on our VPS backend and pointed to by our domain.
 *   **Webhooks:** Listens for Stripe/Oxapay success events to trigger instant email receipts (via Resend) and update the sheet status to "PAID".
 
 ## Tech Stack 
-• **Frontend**: React, Vite, Tailwind CSS
-• **Backend**: Node.js, Fastify
-• **Infrastructure**: Nginx, PM2, Debian VPS
-• **Integrations**: Stripe, Oxapay, Google Sheets/Drive API (OAuth), Telegram Bot API
+*  **Frontend**: React, Vite, Tailwind CSS
+* **Backend**: Node.js, Fastify
+* **Infrastructure**: Nginx, PM2, Debian VPS
+* **Integrations**: Stripe, Oxapay, Google Sheets/Drive API (OAuth), Telegram Bot API
