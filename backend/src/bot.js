@@ -14,6 +14,7 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
  */
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const WEB_APP_URL = process.env.WEB_APP_URL || 'https://your-frontend-url.com';
+const BACKEND_BASE_URL = process.env.BACKEND_BASE_URL;
 const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID;
 const GOOGLE_CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID;
 const RECEIPTS_DRIVE_FOLDER_ID = process.env.RECEIPTS_DRIVE_FOLDER_ID;
@@ -53,6 +54,34 @@ function escapeLinkUrl(str) {
  */
 function generateJobId() {
     return Math.random().toString(36).substring(2, 10);
+}
+
+async function createJob(jobId, amount, description) {
+    const apiBase = (BACKEND_BASE_URL || '').replace(/\/$/, '');
+    if (apiBase) {
+        try {
+            const response = await fetch(`${apiBase}/v1/jobs`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: jobId, amount, description })
+            });
+            if (response.ok) return;
+
+            const errorText = await response.text();
+            log('WARN', 'Remote job create failed, falling back to local DB', {
+                jobId,
+                status: response.status,
+                error: errorText
+            });
+        } catch (err) {
+            log('WARN', 'Remote job create error, falling back to local DB', {
+                jobId,
+                error: err.message
+            });
+        }
+    }
+
+    DB.createJob(jobId, amount, description);
 }
 
 async function getTelegramFileUrl(fileId) {
@@ -287,7 +316,7 @@ _Saved to Sheet${calendarMsg}_
                             }
                             const description = parts.slice(2).join(' ');
                             const jobId = generateJobId();
-                            DB.createJob(jobId, amount, description);
+                            await createJob(jobId, amount, description);
 
                             // Log to Google Sheets
                             try {
@@ -355,7 +384,7 @@ _Saved to Sheet${calendarMsg}_
                             const description = text;
                             const amount = userStates[userId].amount;
                             const jobId = generateJobId();
-                            DB.createJob(jobId, amount, description);
+                            await createJob(jobId, amount, description);
                             
                             // Log to Google Sheets
                             try {

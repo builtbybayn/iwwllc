@@ -33,7 +33,7 @@ All data is instantly logged to the master Google Sheet for accounting.
 
 ### Telegram Bot
 Acts as the command center. No external dashboard required. Quick and orderly entry.
-*   **Invoicing:** `/invoice 450 "Window cleaning"` generates a unique payment link (`pay.iwwllc.com/?jobid=example`).
+*   **Invoicing:** `/invoice 450 "Window cleaning"` generates a unique payment link (`pay.iwwllc.com/?jobId=example`).
 *   **CRM:** `/lead` and `/book` commands parse raw text and route it to the correct database.
 * **Expenses:** `/tax 84.20 "Gas"` (or interactive mode) captures receipt photos, uploads them to Drive, and logs the expense.
 

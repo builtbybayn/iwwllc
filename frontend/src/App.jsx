@@ -51,7 +51,7 @@ const App = () => {
 
     // Fetch Job if jobId is in URL
     const urlParams = new URLSearchParams(window.location.search)
-    const jobId = urlParams.get('jobId')
+    const jobId = urlParams.get('jobId') || urlParams.get('jobid')
     const initialView = urlParams.get('view')
     
     if (initialView) {

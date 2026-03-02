@@ -128,6 +128,26 @@ fastify.get('/v1/jobs/:id', async (request, reply) => {
     return { status: 'ok', job };
 });
 
+fastify.post('/v1/jobs', async (request, reply) => {
+    const { id, amount, description } = request.body || {};
+    const parsedAmount = parseFloat(amount);
+
+    if (!id || !description || Number.isNaN(parsedAmount)) {
+        return reply.status(400).send({
+            status: 'error',
+            message: 'Missing or invalid id, amount, or description'
+        });
+    }
+
+    try {
+        DB.createJob(String(id), parsedAmount, String(description));
+        return { status: 'ok', jobId: String(id) };
+    } catch (err) {
+        log('ERROR', 'Failed to create job', { id, error: err.message });
+        return reply.status(500).send({ status: 'error', message: err.message });
+    }
+});
+
 fastify.get('/v1/orders/:id', async (request, reply) => {
     const orderId = request.params.id;
     const order = DB.getOrder(orderId);
