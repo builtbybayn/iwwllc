@@ -149,7 +149,7 @@ export class EmailService {
         };
 
         if (this.replyTo) {
-            body.replyTo = this.replyTo;
+            body.reply_to = this.replyTo;
         }
 
         const response = await fetch('https://api.resend.com/emails', {
