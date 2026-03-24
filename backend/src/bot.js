@@ -185,6 +185,7 @@ async function startBot() {
                             if (state.includes('LEAD')) cmdName = 'lead';
                             else if (state.includes('BOOK')) cmdName = 'booking';
                             else if (state.includes('TAX')) cmdName = 'tax';
+                            else if (state.includes('REVENUE')) cmdName = 'revenue';
                             else if (state.includes('AMOUNT') || state.includes('DESCRIPTION')) cmdName = 'invoice';
                             
                             userStates[userId] = null;
@@ -210,6 +211,7 @@ async function startBot() {
 📊 \`/lead\` \\- Add customer lead
 📅 \`/book\` \\- Schedule booking
 🧾 \`/tax\` \\- Log purchase \\+ receipt
+💵 \`/revenue\` \\- Log cash or other job revenue
 🛠 \`/cancel\` \\- Stop current flow
 
 _Type \`/help\` for advanced usage_
@@ -237,6 +239,10 @@ _Ex: \`/book John, Oct 12, 10am, 150, Full\`_
 🧾 *Tax Purchases*
 \`/tax [amount] [description]\`
 _Ex: \`/tax 84.20 Filters and cleaner\`_
+
+💵 *Revenue*
+\`/revenue\`
+_Use interactive mode to log a revenue entry_
 
 ⚡ *Tip:* Type any command without arguments to use the interactive guide\\.
                         `.trim());
@@ -361,6 +367,12 @@ _Saved to Sheet${calendarMsg}_
                             userStates[userId] = { state: 'AWAITING_TAX_DESCRIPTION', amount };
                             await sendMessage(chatId, escapeMarkdownV2('Enter purchase description.'));
                         }
+                        continue;
+                    }
+
+                    if (text.startsWith('/revenue')) {
+                        userStates[userId] = { state: 'AWAITING_REVENUE_CLIENT' };
+                        await sendMessage(chatId, escapeMarkdownV2('Who is the client?'));
                         continue;
                     }
 
@@ -550,6 +562,82 @@ _Saved to Sheet${calendarMsg}_
                                 console.error('[TAX] Failed to save purchase:', errorMsg);
                                 await sendMessage(chatId, `❌ Failed to save tax purchase\\.\n\nReason: ${escapeMarkdownV2(errorMsg)}`);
                             }
+                            userStates[userId] = null;
+                            continue;
+                        }
+
+                        // Revenue Flow
+                        if (state === 'AWAITING_REVENUE_CLIENT') {
+                            const client = text.trim();
+                            if (!client) {
+                                await sendMessage(chatId, escapeMarkdownV2('Client cannot be empty. Who is the client?'));
+                                continue;
+                            }
+                            userStates[userId] = { state: 'AWAITING_REVENUE_AMOUNT', client };
+                            await sendMessage(chatId, escapeMarkdownV2('How much revenue was collected? Enter a number.'));
+                            continue;
+                        }
+                        if (state === 'AWAITING_REVENUE_AMOUNT') {
+                            const amount = parseFloat(text);
+                            if (isNaN(amount)) {
+                                await sendMessage(chatId, '❌ Invalid amount\\. Please enter a number \\(e\\.g\\. 250\\)\\.');
+                                continue;
+                            }
+                            userStates[userId] = { ...userStates[userId], state: 'AWAITING_REVENUE_PAYMENT_METHOD', amount };
+                            await sendMessage(chatId, escapeMarkdownV2('What was the payment method? (Cash, Venmo, Crypto, Card, etc.)'));
+                            continue;
+                        }
+                        if (state === 'AWAITING_REVENUE_PAYMENT_METHOD') {
+                            const paymentMethod = text.trim();
+                            if (!paymentMethod) {
+                                await sendMessage(chatId, escapeMarkdownV2('Payment method cannot be empty. Enter the payment method.'));
+                                continue;
+                            }
+                            userStates[userId] = { ...userStates[userId], state: 'AWAITING_REVENUE_NOTES', paymentMethod };
+                            await sendMessage(chatId, escapeMarkdownV2('Enter notes for this entry. Include anything important like who did it, tips, etc.'));
+                            continue;
+                        }
+                        if (state === 'AWAITING_REVENUE_NOTES') {
+                            const notes = text.trim();
+                            if (!notes) {
+                                await sendMessage(chatId, escapeMarkdownV2('Notes cannot be empty. Enter notes for this revenue entry.'));
+                                continue;
+                            }
+                            userStates[userId] = { ...userStates[userId], state: 'AWAITING_REVENUE_JOB_DESCRIPTION', notes };
+                            await sendMessage(chatId, escapeMarkdownV2('What services did we do? Enter the job description.'));
+                            continue;
+                        }
+                        if (state === 'AWAITING_REVENUE_JOB_DESCRIPTION') {
+                            const jobDescription = text.trim();
+                            if (!jobDescription) {
+                                await sendMessage(chatId, escapeMarkdownV2('Job description cannot be empty. What services did we do?'));
+                                continue;
+                            }
+
+                            const { client, amount, paymentMethod, notes } = userStates[userId];
+                            const createdAt = new Date().toLocaleDateString();
+
+                            try {
+                                await googleService.addEntry(GOOGLE_SHEET_ID, 'Revenue', [
+                                    createdAt,
+                                    client,
+                                    `$${amount.toFixed(2)}`,
+                                    paymentMethod,
+                                    notes,
+                                    jobDescription
+                                ]);
+                                await sendMessage(chatId, `
+✅ *Revenue Saved\\!*
+👤 *Client:* ${escapeMarkdownV2(client)}
+💰 *Amount:* ${escapeMarkdownV2(`$${amount.toFixed(2)}`)}
+💳 *Method:* ${escapeMarkdownV2(paymentMethod)}
+📒 *Notes:* ${escapeMarkdownV2(notes)}
+📝 *Services:* ${escapeMarkdownV2(jobDescription)}
+                                `.trim());
+                            } catch (e) {
+                                await sendMessage(chatId, '❌ Failed to add revenue entry\\. Check server console\\.');
+                            }
+
                             userStates[userId] = null;
                             continue;
                         }

@@ -7,6 +7,7 @@ import { validateTelegramData } from './utils/auth.js';
 import { sanitizeCode, validateContactInfo } from './utils/validation.js';
 import { OxaPayService } from './services/oxapay.js';
 import { GoogleService } from './services/google.js';
+import { EmailService } from './services/email.js';
 import Stripe from 'stripe';
 import crypto from 'crypto';
 
@@ -40,6 +41,7 @@ const ALLOWED_ORIGINS = [FRONTEND_URL, BACKEND_BASE_URL].filter(Boolean);
 const telegramService = new TelegramService(TELEGRAM_BOT_TOKEN);
 const oxapayService = new OxaPayService(OXAPAY_MERCHANT_KEY);
 const googleService = new GoogleService();
+const emailService = new EmailService();
 const stripe = new Stripe(STRIPE_SECRET_KEY);
 
 // --- PLUGINS ---
@@ -281,12 +283,31 @@ fastify.post('/v1/payments/webhook/oxapay', async (request, reply) => {
 
     const data = request.body;
     if (data.status === 'paid' || data.status === 'confirmed') {
-        DB.updateOrderStatus(data.trackId, 'paid', true);
-        
-        // Update Google Sheets
         const order = DB.getOrderByExternalId(data.trackId);
+        const wasAlreadyPaid = order?.status === 'paid' || order?.status === 'confirmed';
+
+        DB.updateOrderStatus(data.trackId, 'paid', true);
+
         if (order && order.job_id) {
             await googleService.updateInvoiceStatus(GOOGLE_SHEET_ID, order.job_id, 'PAID');
+        }
+
+        if (order && !wasAlreadyPaid) {
+            const job = order.job_id ? DB.getJob(order.job_id) : null;
+            try {
+                await emailService.sendPaymentReceipt({
+                    orderId: order.id,
+                    customerEmail: order.email,
+                    paymentMethod: 'Crypto',
+                    serviceDescription: job?.description || process.env.PRODUCT_NAME || 'Window Cleaning Service',
+                    serviceAmount: (parseFloat(order.amount || 0) - parseFloat(order.tip_amount || 0)).toFixed(2),
+                    tipAmount: order.tip_amount || 0,
+                    totalAmount: order.amount || 0,
+                    paidAt: new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })
+                });
+            } catch (err) {
+                log('ERROR', 'Failed to send crypto receipt email', { orderId: order.id, error: err.message });
+            }
         }
     } else if (data.status === 'expired') {
         DB.updateOrderStatus(data.trackId, 'expired', true);
@@ -369,6 +390,8 @@ fastify.post('/v1/payments/webhook/stripe', async (request, reply) => {
     if (event.type === 'checkout.session.completed') {
         const session = event.data.object;
         const orderId = session.metadata.order_id;
+        const order = DB.getOrder(orderId);
+        const wasAlreadyPaid = order?.status === 'paid' || order?.status === 'confirmed';
         
         log('INFO', 'Stripe Checkout Session Completed', { orderId, email: session.customer_details.email });
         
@@ -376,13 +399,27 @@ fastify.post('/v1/payments/webhook/stripe', async (request, reply) => {
         DB.updateOrderStatus(orderId, 'paid');
 
         // Update Google Sheets
-        const order = DB.getOrder(orderId);
         if (order && order.job_id) {
             await googleService.updateInvoiceStatus(GOOGLE_SHEET_ID, order.job_id, 'PAID');
         }
-        
-        // In a real app, trigger receipt email here
-        // sendReceiptEmail(session.customer_details.email, session.metadata);
+
+        if (order && !wasAlreadyPaid) {
+            const job = order.job_id ? DB.getJob(order.job_id) : null;
+            try {
+                await emailService.sendPaymentReceipt({
+                    orderId,
+                    customerEmail: order.email || session.customer_details?.email,
+                    paymentMethod: 'Card',
+                    serviceDescription: job?.description || session.metadata.description || process.env.PRODUCT_NAME || 'Window Cleaning Service',
+                    serviceAmount: session.metadata.service_amount || (parseFloat(order.amount || 0) - parseFloat(order.tip_amount || 0)).toFixed(2),
+                    tipAmount: session.metadata.tip_amount || order.tip_amount || 0,
+                    totalAmount: order.amount || 0,
+                    paidAt: new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })
+                });
+            } catch (err) {
+                log('ERROR', 'Failed to send card receipt email', { orderId, error: err.message });
+            }
+        }
     }
 
     return { received: true };

@@ -24,7 +24,8 @@ export class GoogleService {
             'Leads': ['Name', 'Phone', 'Description', 'Date'],
             'Booked': ['Client', 'Date', 'Time', 'Price', 'Description'],
             'Invoices': ['Invoice ID', 'Amount', 'Description', 'Status', 'Created At'],
-            'Taxes': ['Amount', 'Description', 'Preview', 'Created At', 'Receipt URL', 'Telegram File ID', 'Drive File ID']
+            'Taxes': ['Amount', 'Description', 'Preview', 'Created At', 'Receipt URL', 'Telegram File ID', 'Drive File ID'],
+            'Revenue': ['Date', 'Client', 'Amount', 'Payment Method', 'Notes', 'Job Description']
         };
     }
 
