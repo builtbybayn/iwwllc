@@ -19,6 +19,9 @@ export class GoogleService {
             scopes: SCOPES,
         });
         this.driveAuth = this.createDriveAuth();
+        this.formulaColumns = {
+            Taxes: new Set([2])
+        };
         
         this.schema = {
             'Leads': ['Name', 'Phone', 'Description', 'Date'],
@@ -42,6 +45,24 @@ export class GoogleService {
 
         // Fallback to service account if OAuth vars are missing.
         return this.auth;
+    }
+
+    sanitizeCellValue(value, allowFormula = false) {
+        if (value === null || value === undefined) return '';
+        if (typeof value !== 'string') return value;
+        if (allowFormula) return value;
+
+        // Prevent Sheets from treating user-entered text like formulas.
+        if (/^\s*[=+\-@]/.test(value)) {
+            return `'${value}`;
+        }
+
+        return value;
+    }
+
+    sanitizeRow(tabTitle, dataArray) {
+        const formulaColumns = this.formulaColumns[tabTitle] || new Set();
+        return dataArray.map((value, index) => this.sanitizeCellValue(value, formulaColumns.has(index)));
     }
 
     async ensureSheet(spreadsheetId, title) {
@@ -78,11 +99,12 @@ export class GoogleService {
         try {
             await this.ensureSheet(spreadsheetId, tabTitle);
             const sheets = google.sheets({ version: 'v4', auth: this.auth });
+            const sanitizedValues = this.sanitizeRow(tabTitle, dataArray);
             await sheets.spreadsheets.values.append({
                 spreadsheetId,
                 range: `${tabTitle}!A1`,
                 valueInputOption: 'USER_ENTERED',
-                requestBody: { values: [dataArray] },
+                requestBody: { values: [sanitizedValues] },
             });
         } catch (err) {
             console.error(`[GOOGLE] Error adding to ${tabTitle}:`, err.message);
@@ -123,7 +145,7 @@ export class GoogleService {
         if (!calendarId) return;
         const calendar = google.calendar({ version: 'v3', auth: this.auth });
         try {
-            await calendar.events.insert({
+            const response = await calendar.events.insert({
                 calendarId,
                 requestBody: {
                     summary,
@@ -132,8 +154,10 @@ export class GoogleService {
                     end: { dateTime: endDateTime, timeZone: 'America/New_York' },
                 },
             });
+            return response.data;
         } catch (err) {
             console.error('[GOOGLE] Calendar Error:', err.message);
+            throw err;
         }
     }
 

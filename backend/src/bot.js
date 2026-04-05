@@ -32,6 +32,29 @@ const WHITELISTED_USERS = (process.env.WHITELISTED_USERS || '')
 
 const googleService = new GoogleService();
 const userStates = {};
+const MONTHS = new Map([
+    ['january', 0], ['jan', 0],
+    ['february', 1], ['feb', 1],
+    ['march', 2], ['mar', 2],
+    ['april', 3], ['apr', 3],
+    ['may', 4],
+    ['june', 5], ['jun', 5],
+    ['july', 6], ['jul', 6],
+    ['august', 7], ['aug', 7],
+    ['september', 8], ['sep', 8], ['sept', 8],
+    ['october', 9], ['oct', 9],
+    ['november', 10], ['nov', 10],
+    ['december', 11], ['dec', 11]
+]);
+const WEEKDAYS = new Map([
+    ['sunday', 0], ['sun', 0],
+    ['monday', 1], ['mon', 1],
+    ['tuesday', 2], ['tue', 2], ['tues', 2],
+    ['wednesday', 3], ['wed', 3],
+    ['thursday', 4], ['thu', 4], ['thur', 4], ['thurs', 4],
+    ['friday', 5], ['fri', 5],
+    ['saturday', 6], ['sat', 6]
+]);
 
 /**
  * Escapes characters for Telegram MarkdownV2 (general text)
@@ -54,6 +77,194 @@ function escapeLinkUrl(str) {
  */
 function generateJobId() {
     return Math.random().toString(36).substring(2, 10);
+}
+
+function normalizeWhitespace(str) {
+    return String(str || '').trim().replace(/\s+/g, ' ');
+}
+
+function startOfLocalDay(date) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function addDays(date, days) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+}
+
+function buildLocalDate(year, monthIndex, day) {
+    const date = new Date(year, monthIndex, day);
+    if (
+        Number.isNaN(date.getTime()) ||
+        date.getFullYear() !== year ||
+        date.getMonth() !== monthIndex ||
+        date.getDate() !== day
+    ) {
+        return null;
+    }
+
+    return date;
+}
+
+function formatNormalizedDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function resolveMonthDay(monthIndex, day, year, hasExplicitYear, now) {
+    const today = startOfLocalDay(now);
+    let resolvedYear = year;
+    let candidate = buildLocalDate(resolvedYear, monthIndex, day);
+
+    if (!candidate) return null;
+
+    if (!hasExplicitYear && candidate < today) {
+        resolvedYear += 1;
+        candidate = buildLocalDate(resolvedYear, monthIndex, day);
+    }
+
+    return candidate;
+}
+
+function parseRelativeWeekday(raw, now) {
+    const weekdayMatch = raw.match(/^(?:(next|this)\s+)?(sunday|sun|monday|mon|tuesday|tue|tues|wednesday|wed|thursday|thu|thur|thurs|friday|fri|saturday|sat)$/);
+    if (!weekdayMatch) return null;
+
+    const modifier = weekdayMatch[1] || '';
+    const targetDay = WEEKDAYS.get(weekdayMatch[2]);
+    const today = startOfLocalDay(now);
+    const todayDay = today.getDay();
+    let delta = (targetDay - todayDay + 7) % 7;
+
+    if (modifier === 'next') {
+        delta = delta === 0 ? 7 : delta;
+    } else if (modifier === 'this') {
+        if (delta === 0) return today;
+    }
+
+    return addDays(today, delta);
+}
+
+function parseTimeParts(timeStr) {
+    const normalized = normalizeWhitespace(timeStr).toLowerCase().replace(/\./g, '');
+    if (!normalized) return null;
+
+    const match = normalized.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+    if (!match) return null;
+
+    let hours = parseInt(match[1], 10);
+    const minutes = match[2] ? parseInt(match[2], 10) : 0;
+    const meridiem = match[3];
+
+    if (minutes > 59) return null;
+
+    if (meridiem) {
+        if (hours < 1 || hours > 12) return null;
+        if (meridiem === 'am') {
+            hours = hours === 12 ? 0 : hours;
+        } else {
+            hours = hours === 12 ? 12 : hours + 12;
+        }
+    } else {
+        if (hours > 23) return null;
+
+        // Apply booking-hour assumptions for bare numeric times.
+        if (!match[2] && hours >= 1 && hours <= 6) {
+            hours += 12;
+        } else if (!match[2] && hours === 12) {
+            hours = 12;
+        } else if (!match[2] && hours >= 7 && hours <= 11) {
+            hours = hours;
+        }
+    }
+
+    return { hours, minutes };
+}
+
+function formatNormalizedTime(timeParts) {
+    const hours24 = String(timeParts.hours).padStart(2, '0');
+    const minutes = String(timeParts.minutes).padStart(2, '0');
+    return `${hours24}:${minutes}`;
+}
+
+function normalizeBookingDate(input, now = new Date()) {
+    const raw = normalizeWhitespace(input)
+        .toLowerCase()
+        .replace(/,/g, ' ')
+        .replace(/\b(\d{1,2})(st|nd|rd|th)\b/g, '$1');
+
+    if (!raw) return null;
+
+    const today = startOfLocalDay(now);
+
+    if (raw === 'today') return formatNormalizedDate(today);
+    if (raw === 'tomorrow') return formatNormalizedDate(addDays(today, 1));
+    if (raw === 'day after tomorrow') return formatNormalizedDate(addDays(today, 2));
+
+    const weekdayDate = parseRelativeWeekday(raw, now);
+    if (weekdayDate) return formatNormalizedDate(weekdayDate);
+
+    const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (isoMatch) {
+        const candidate = buildLocalDate(
+            parseInt(isoMatch[1], 10),
+            parseInt(isoMatch[2], 10) - 1,
+            parseInt(isoMatch[3], 10)
+        );
+        return candidate ? formatNormalizedDate(candidate) : null;
+    }
+
+    const numericMatch = raw.match(/^(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?$/);
+    if (numericMatch) {
+        const monthIndex = parseInt(numericMatch[1], 10) - 1;
+        const day = parseInt(numericMatch[2], 10);
+        let year = numericMatch[3] ? parseInt(numericMatch[3], 10) : today.getFullYear();
+
+        if (monthIndex < 0 || monthIndex > 11) return null;
+        if (numericMatch[3] && numericMatch[3].length === 2) {
+            year += year >= 70 ? 1900 : 2000;
+        }
+
+        const candidate = resolveMonthDay(monthIndex, day, year, Boolean(numericMatch[3]), now);
+        return candidate ? formatNormalizedDate(candidate) : null;
+    }
+
+    const monthFirstMatch = raw.match(/^([a-z]+)\s+(\d{1,2})(?:\s+(\d{2,4}))?$/);
+    if (monthFirstMatch && MONTHS.has(monthFirstMatch[1])) {
+        let year = monthFirstMatch[3] ? parseInt(monthFirstMatch[3], 10) : today.getFullYear();
+        if (monthFirstMatch[3] && monthFirstMatch[3].length === 2) {
+            year += year >= 70 ? 1900 : 2000;
+        }
+
+        const candidate = resolveMonthDay(
+            MONTHS.get(monthFirstMatch[1]),
+            parseInt(monthFirstMatch[2], 10),
+            year,
+            Boolean(monthFirstMatch[3]),
+            now
+        );
+        return candidate ? formatNormalizedDate(candidate) : null;
+    }
+
+    const dayFirstMatch = raw.match(/^(\d{1,2})\s+([a-z]+)(?:\s+(\d{2,4}))?$/);
+    if (dayFirstMatch && MONTHS.has(dayFirstMatch[2])) {
+        let year = dayFirstMatch[3] ? parseInt(dayFirstMatch[3], 10) : today.getFullYear();
+        if (dayFirstMatch[3] && dayFirstMatch[3].length === 2) {
+            year += year >= 70 ? 1900 : 2000;
+        }
+
+        const candidate = resolveMonthDay(
+            MONTHS.get(dayFirstMatch[2]),
+            parseInt(dayFirstMatch[1], 10),
+            year,
+            Boolean(dayFirstMatch[3]),
+            now
+        );
+        return candidate ? formatNormalizedDate(candidate) : null;
+    }
+
+    return null;
 }
 
 async function createJob(jobId, amount, description) {
@@ -134,17 +345,13 @@ async function sendPhoto(chatId, photoUrl, caption, replyMarkup = {}) {
     }
 }
 
-/**
- * Basic Date/Time parser helper
- * Returns a simple ISO string for today + user time if possible
- */
 function parseToISO(dateStr, timeStr) {
     try {
-        const year = new Date().getFullYear();
-        const fullStr = `${dateStr} ${year} ${timeStr}`;
-        const date = new Date(fullStr);
-        if (isNaN(date.getTime())) return null;
-        return date.toISOString();
+        const normalizedDate = normalizeBookingDate(dateStr);
+        const timeParts = parseTimeParts(timeStr);
+        if (!normalizedDate || !timeParts) return null;
+
+        return `${normalizedDate}T${formatNormalizedTime(timeParts)}:00`;
     } catch {
         return null;
     }
@@ -234,7 +441,7 @@ _Ex: \`/lead John 555-0199 New House\`_
 
 📅 *Bookings*
 \`/book [name], [date], [time], [price], [desc]\`
-_Ex: \`/book John, Oct 12, 10am, 150, Full\`_
+_Ex: \`/book John, Oct 12, 10am, 150, Full\` or \`/book John, next friday, 10am, 150, Full\`_
 
 🧾 *Tax Purchases*
 \`/tax [amount] [description]\`
@@ -278,33 +485,59 @@ _Use interactive mode to log a revenue entry_
                         const content = text.replace('/book', '').trim();
                         const parts = content.split(',').map(p => p.trim());
                         if (parts.length >= 5) {
-                            const [name, date, time, price, description] = parts;
+                            const [name, rawDate, time, price, ...descriptionParts] = parts;
+                            const normalizedDate = normalizeBookingDate(rawDate);
+                            if (!normalizedDate) {
+                                await sendMessage(chatId, escapeMarkdownV2('Invalid booking date. Try values like "Oct 12", "10/12/2026", "tomorrow", or "next friday".'));
+                                continue;
+                            }
+                            const normalizedTimeParts = parseTimeParts(time);
+                            if (!normalizedTimeParts) {
+                                await sendMessage(chatId, escapeMarkdownV2('Invalid booking time. Try values like 10am, 10:30am, 2pm, or 14:30.'));
+                                continue;
+                            }
+
+                            const description = descriptionParts.join(', ');
                             const displayPrice = price.startsWith('$') ? price : `$${price}`;
+                            const normalizedTime = formatNormalizedTime(normalizedTimeParts);
+                            let savedToSheet = false;
                             try {
-                                await googleService.addEntry(GOOGLE_SHEET_ID, 'Booked', [name, date, time, displayPrice, description]);
-                                const startISO = parseToISO(date, time);
-                                let calendarMsg = '';
-                                if (startISO) {
-                                    const endDate = new Date(new Date(startISO).getTime() + 2 * 60 * 60 * 1000);
-                                    await googleService.addCalendarEvent(GOOGLE_CALENDAR_ID, {
-                                        summary: `Cleaning: ${name} (${displayPrice})`,
-                                        description: description,
-                                        startDateTime: startISO,
-                                        endDateTime: endDate.toISOString()
-                                    });
-                                    calendarMsg = ' & Calendar';
-                                }
+                                await googleService.addEntry(GOOGLE_SHEET_ID, 'Booked', [name, normalizedDate, normalizedTime, displayPrice, description]);
+                                savedToSheet = true;
+                                const startDateTime = parseToISO(normalizedDate, normalizedTime);
+                                if (!startDateTime) throw new Error('Could not build calendar start time from booking input');
+
+                                const endDate = new Date(`${startDateTime}:00`);
+                                endDate.setHours(endDate.getHours() + 2);
+                                const endDateTime = `${formatNormalizedDate(endDate)}T${formatNormalizedTime({
+                                    hours: endDate.getHours(),
+                                    minutes: endDate.getMinutes()
+                                })}:00`;
+
+                                await googleService.addCalendarEvent(GOOGLE_CALENDAR_ID, {
+                                    summary: `Cleaning: ${name} (${displayPrice})`,
+                                    description: description,
+                                    startDateTime,
+                                    endDateTime
+                                });
                                 await sendMessage(chatId, `
 ✅ *Booking Confirmed\\!*
 👤 *Client:* ${escapeMarkdownV2(name)}
-📅 *Date:* ${escapeMarkdownV2(date)}
-⏰ *Time:* ${escapeMarkdownV2(time)}
+📅 *Date:* ${escapeMarkdownV2(normalizedDate)}
+⏰ *Time:* ${escapeMarkdownV2(normalizedTime)}
 💰 *Price:* ${escapeMarkdownV2(displayPrice)}
 📝 *Desc:* ${escapeMarkdownV2(description)}
 
-_Saved to Sheet${calendarMsg}_
+_Saved to Sheet & Calendar_
                                 `.trim());
-                            } catch (err) { await sendMessage(chatId, '❌ Failed to process booking\\. Check server console\\.'); }
+                            } catch (err) {
+                                const errorText = err?.message ? String(err.message) : 'Unknown error';
+                                if (savedToSheet) {
+                                    await sendMessage(chatId, `❌ Booking saved to Sheet, but Calendar failed\\.\n\nReason: ${escapeMarkdownV2(errorText)}`);
+                                } else {
+                                    await sendMessage(chatId, `❌ Failed to process booking\\.\n\nReason: ${escapeMarkdownV2(errorText)}`);
+                                }
+                            }
                         } else {
                             userStates[userId] = { state: 'AWAITING_BOOK_NAME' };
                             await sendMessage(chatId, escapeMarkdownV2('Who is the client? (Name)'));
@@ -444,16 +677,26 @@ _Saved to Sheet${calendarMsg}_
                         // Booking Flow
                         if (state === 'AWAITING_BOOK_NAME') {
                             userStates[userId] = { state: 'AWAITING_BOOK_DATE', name: text };
-                            await sendMessage(chatId, escapeMarkdownV2('What is the date? (e.g. Oct 12)'));
+                            await sendMessage(chatId, escapeMarkdownV2('What is the date? (e.g. Oct 12, tomorrow, next friday, 10/12/2026)'));
                             continue;
                         }
                         if (state === 'AWAITING_BOOK_DATE') {
-                            userStates[userId] = { ...userStates[userId], state: 'AWAITING_BOOK_TIME', date: text };
+                            const normalizedDate = normalizeBookingDate(text);
+                            if (!normalizedDate) {
+                                await sendMessage(chatId, escapeMarkdownV2('I could not understand that date. Try values like Oct 12, tomorrow, next friday, or 10/12/2026.'));
+                                continue;
+                            }
+                            userStates[userId] = { ...userStates[userId], state: 'AWAITING_BOOK_TIME', date: normalizedDate };
                             await sendMessage(chatId, escapeMarkdownV2('What time? (e.g. 10am)'));
                             continue;
                         }
                         if (state === 'AWAITING_BOOK_TIME') {
-                            userStates[userId] = { ...userStates[userId], state: 'AWAITING_BOOK_PRICE', time: text };
+                            const normalizedTimeParts = parseTimeParts(text);
+                            if (!normalizedTimeParts) {
+                                await sendMessage(chatId, escapeMarkdownV2('I could not understand that time. Try values like 10am, 10:30am, 2pm, or 14:30.'));
+                                continue;
+                            }
+                            userStates[userId] = { ...userStates[userId], state: 'AWAITING_BOOK_PRICE', time: formatNormalizedTime(normalizedTimeParts) };
                             await sendMessage(chatId, escapeMarkdownV2('What is the price? (Numbers only)'));
                             continue;
                         }
@@ -466,20 +709,26 @@ _Saved to Sheet${calendarMsg}_
                             const { name, date, time, price } = userStates[userId];
                             const description = text;
                             const displayPrice = price.startsWith('$') ? price : `$${price}`;
+                            let savedToSheet = false;
                             try {
                                 await googleService.addEntry(GOOGLE_SHEET_ID, 'Booked', [name, date, time, displayPrice, description]);
-                                const startISO = parseToISO(date, time);
-                                let calendarMsg = '';
-                                if (startISO) {
-                                    const endDate = new Date(new Date(startISO).getTime() + 2 * 60 * 60 * 1000);
-                                    await googleService.addCalendarEvent(GOOGLE_CALENDAR_ID, {
-                                        summary: `Cleaning: ${name} (${displayPrice})`,
-                                        description: description,
-                                        startDateTime: startISO,
-                                        endDateTime: endDate.toISOString()
-                                    });
-                                    calendarMsg = ' & Calendar';
-                                }
+                                savedToSheet = true;
+                                const startDateTime = parseToISO(date, time);
+                                if (!startDateTime) throw new Error('Could not build calendar start time from booking input');
+
+                                const endDate = new Date(`${startDateTime}:00`);
+                                endDate.setHours(endDate.getHours() + 2);
+                                const endDateTime = `${formatNormalizedDate(endDate)}T${formatNormalizedTime({
+                                    hours: endDate.getHours(),
+                                    minutes: endDate.getMinutes()
+                                })}:00`;
+
+                                await googleService.addCalendarEvent(GOOGLE_CALENDAR_ID, {
+                                    summary: `Cleaning: ${name} (${displayPrice})`,
+                                    description: description,
+                                    startDateTime,
+                                    endDateTime
+                                });
                                 await sendMessage(chatId, `
 ✅ *Booking Confirmed\\!*
 👤 *Client:* ${escapeMarkdownV2(name)}
@@ -488,9 +737,16 @@ _Saved to Sheet${calendarMsg}_
 💰 *Price:* ${escapeMarkdownV2(displayPrice)}
 📝 *Desc:* ${escapeMarkdownV2(description)}
 
-_Saved to Sheet${calendarMsg}_
+_Saved to Sheet & Calendar_
                                 `.trim());
-                            } catch (e) { await sendMessage(chatId, '❌ Failed to process booking\\. Check server console\\.'); }
+                            } catch (e) {
+                                const errorText = e?.message ? String(e.message) : 'Unknown error';
+                                if (savedToSheet) {
+                                    await sendMessage(chatId, `❌ Booking saved to Sheet, but Calendar failed\\.\n\nReason: ${escapeMarkdownV2(errorText)}`);
+                                } else {
+                                    await sendMessage(chatId, `❌ Failed to process booking\\.\n\nReason: ${escapeMarkdownV2(errorText)}`);
+                                }
+                            }
                             userStates[userId] = null;
                             continue;
                         }
