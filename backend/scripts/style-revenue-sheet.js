@@ -4,19 +4,19 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(__dirname, '.env') });
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
-const KEY_PATH = path.join(__dirname, 'service-account.json');
+const KEY_PATH = path.join(__dirname, '../service-account.json');
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
-const TAB_TITLE = 'Taxes';
-const TAX_HEADERS = ['Amount', 'Description', 'Preview', 'Created At', 'Receipt URL', 'Telegram File ID', 'Drive File ID'];
+const TAB_TITLE = 'Revenue';
+const REVENUE_HEADERS = ['Date', 'Client', 'Amount', 'Payment Method', 'Notes', 'Job Description'];
 
 const auth = new google.auth.GoogleAuth({
     keyFile: KEY_PATH,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 
-async function ensureTaxesTab(sheets) {
+async function ensureRevenueTab(sheets) {
     const metadata = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
     let tab = metadata.data.sheets.find(s => s.properties.title === TAB_TITLE);
 
@@ -33,18 +33,14 @@ async function ensureTaxesTab(sheets) {
 
     const headerRes = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
-        range: `${TAB_TITLE}!A1:G1`
+        range: `${TAB_TITLE}!A1:F1`
     });
-    const hasHeaders = headerRes.data.values && headerRes.data.values[0] && headerRes.data.values[0].length > 0;
-
-    if (!hasHeaders) {
-        await sheets.spreadsheets.values.update({
-            spreadsheetId: SPREADSHEET_ID,
-            range: `${TAB_TITLE}!A1`,
-            valueInputOption: 'USER_ENTERED',
-            requestBody: { values: [TAX_HEADERS] }
-        });
-    }
+    await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${TAB_TITLE}!A1`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [REVENUE_HEADERS] }
+    });
 
     return tab.properties.sheetId;
 }
@@ -71,7 +67,7 @@ async function clearConditionalRules(sheets, sheetId) {
     });
 }
 
-async function styleTaxesTab() {
+async function styleRevenueTab() {
     if (!SPREADSHEET_ID) {
         console.error('Missing GOOGLE_SHEET_ID in backend/.env');
         process.exit(1);
@@ -80,11 +76,11 @@ async function styleTaxesTab() {
     const sheets = google.sheets({ version: 'v4', auth });
 
     try {
-        const sheetId = await ensureTaxesTab(sheets);
+        const sheetId = await ensureRevenueTab(sheets);
         await clearConditionalRules(sheets, sheetId);
 
-        const headerColor = { red: 0.1, green: 0.55, blue: 0.45 };
-        const zebraColor = { red: 0.95, green: 0.99, blue: 0.97 };
+        const headerColor = { red: 0.1, green: 0.1, blue: 0.1 };
+        const zebraColor = { red: 0.96, green: 0.96, blue: 0.96 };
 
         const requests = [
             {
@@ -116,9 +112,51 @@ async function styleTaxesTab() {
                 updateDimensionProperties: {
                     range: {
                         sheetId,
-                        dimension: 'ROWS',
+                        dimension: 'COLUMNS',
+                        startIndex: 0,
+                        endIndex: 1
+                    },
+                    properties: {
+                        pixelSize: 130
+                    },
+                    fields: 'pixelSize'
+                }
+            },
+            {
+                updateDimensionProperties: {
+                    range: {
+                        sheetId,
+                        dimension: 'COLUMNS',
                         startIndex: 1,
-                        endIndex: 1000
+                        endIndex: 2
+                    },
+                    properties: {
+                        pixelSize: 170
+                    },
+                    fields: 'pixelSize'
+                }
+            },
+            {
+                updateDimensionProperties: {
+                    range: {
+                        sheetId,
+                        dimension: 'COLUMNS',
+                        startIndex: 2,
+                        endIndex: 3
+                    },
+                    properties: {
+                        pixelSize: 110
+                    },
+                    fields: 'pixelSize'
+                }
+            },
+            {
+                updateDimensionProperties: {
+                    range: {
+                        sheetId,
+                        dimension: 'COLUMNS',
+                        startIndex: 3,
+                        endIndex: 4
                     },
                     properties: {
                         pixelSize: 150
@@ -128,50 +166,29 @@ async function styleTaxesTab() {
             },
             {
                 updateDimensionProperties: {
-                    range: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 1 },
-                    properties: { pixelSize: 120 },
+                    range: {
+                        sheetId,
+                        dimension: 'COLUMNS',
+                        startIndex: 4,
+                        endIndex: 5
+                    },
+                    properties: {
+                        pixelSize: 320
+                    },
                     fields: 'pixelSize'
                 }
             },
             {
                 updateDimensionProperties: {
-                    range: { sheetId, dimension: 'COLUMNS', startIndex: 1, endIndex: 2 },
-                    properties: { pixelSize: 280 },
-                    fields: 'pixelSize'
-                }
-            },
-            {
-                updateDimensionProperties: {
-                    range: { sheetId, dimension: 'COLUMNS', startIndex: 2, endIndex: 3 },
-                    properties: { pixelSize: 300 },
-                    fields: 'pixelSize'
-                }
-            },
-            {
-                updateDimensionProperties: {
-                    range: { sheetId, dimension: 'COLUMNS', startIndex: 3, endIndex: 4 },
-                    properties: { pixelSize: 190 },
-                    fields: 'pixelSize'
-                }
-            },
-            {
-                updateDimensionProperties: {
-                    range: { sheetId, dimension: 'COLUMNS', startIndex: 4, endIndex: 5 },
-                    properties: { pixelSize: 340 },
-                    fields: 'pixelSize'
-                }
-            },
-            {
-                updateDimensionProperties: {
-                    range: { sheetId, dimension: 'COLUMNS', startIndex: 5, endIndex: 6 },
-                    properties: { pixelSize: 250 },
-                    fields: 'pixelSize'
-                }
-            },
-            {
-                updateDimensionProperties: {
-                    range: { sheetId, dimension: 'COLUMNS', startIndex: 6, endIndex: 7 },
-                    properties: { pixelSize: 220 },
+                    range: {
+                        sheetId,
+                        dimension: 'COLUMNS',
+                        startIndex: 5,
+                        endIndex: 6
+                    },
+                    properties: {
+                        pixelSize: 260
+                    },
                     fields: 'pixelSize'
                 }
             },
@@ -182,7 +199,7 @@ async function styleTaxesTab() {
                         startRowIndex: 0,
                         endRowIndex: 1,
                         startColumnIndex: 0,
-                        endColumnIndex: 7
+                        endColumnIndex: 6
                     },
                     cell: {
                         userEnteredFormat: {
@@ -206,7 +223,7 @@ async function styleTaxesTab() {
                         startRowIndex: 1,
                         endRowIndex: 1000,
                         startColumnIndex: 0,
-                        endColumnIndex: 7
+                        endColumnIndex: 6
                     },
                     cell: {
                         userEnteredFormat: {
@@ -224,7 +241,7 @@ async function styleTaxesTab() {
                         startRowIndex: 1,
                         endRowIndex: 1000,
                         startColumnIndex: 2,
-                        endColumnIndex: 3
+                        endColumnIndex: 4
                     },
                     cell: {
                         userEnteredFormat: {
@@ -243,7 +260,7 @@ async function styleTaxesTab() {
                             startRowIndex: 1,
                             endRowIndex: 1000,
                             startColumnIndex: 0,
-                            endColumnIndex: 7
+                            endColumnIndex: 6
                         }],
                         booleanRule: {
                             condition: {
@@ -265,11 +282,11 @@ async function styleTaxesTab() {
             requestBody: { requests }
         });
 
-        console.log('Taxes tab styled successfully.');
+        console.log('Revenue tab styled successfully.');
     } catch (err) {
-        console.error('Failed to style Taxes tab:', err.message);
+        console.error('Failed to style Revenue tab:', err.message);
         process.exit(1);
     }
 }
 
-styleTaxesTab();
+styleRevenueTab();

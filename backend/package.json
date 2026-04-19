@@ -8,8 +8,9 @@
     "start": "node src/app.js",
     "bot": "node src/bot.js",
     "dev": "node --watch src/app.js",
-    "style:taxes": "node style-taxes-sheet.js",
-    "style:revenue": "node style-revenue-sheet.js"
+    "view:booked": "node scripts/create-booked-view-sheet.js",
+    "style:taxes": "node scripts/style-taxes-sheet.js",
+    "style:revenue": "node scripts/style-revenue-sheet.js"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.1",

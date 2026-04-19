@@ -4,9 +4,9 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(__dirname, '.env') });
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
-const KEY_PATH = path.join(__dirname, 'service-account.json');
+const KEY_PATH = path.join(__dirname, '../service-account.json');
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
 
 const auth = new google.auth.GoogleAuth({
